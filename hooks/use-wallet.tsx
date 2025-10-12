@@ -10,10 +10,17 @@ import type { AppKitNetwork } from "@reown/appkit/networks"
 // Get project ID from environment variables
 const PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ""
 
-export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [base]
+export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [base, baseSepolia]
+
+const wagmiAdapter = new WagmiAdapter({
+  networks,
+  projectId: PROJECT_ID,
+  ssr: true,
+})
 
 // Configure AppKit
 const appKit = createAppKit({
+  adapters: [wagmiAdapter],
   projectId: PROJECT_ID,
   networks: [base, baseSepolia],
   metadata: {
