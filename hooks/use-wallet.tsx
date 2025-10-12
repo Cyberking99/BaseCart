@@ -1,7 +1,23 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
-import { useAppKitWallet } from "@reown/appkit-wallet-button/react"
+import { createAppKit } from "@reown/appkit/react"
+import { mainnet, base, polygon, arbitrum } from "viem/chains"
+
+// Get project ID from environment variables
+const PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ""
+
+// Configure AppKit
+const appKit = createAppKit({
+  projectId: PROJECT_ID,
+  networks: [mainnet, base, polygon, arbitrum],
+  metadata: {
+    name: "BaseCart",
+    description: "Secure Escrow Shopping on Base",
+    url: typeof window !== "undefined" ? window.location.origin : "",
+    icons: ["/placeholder-logo.png"]
+  }
+})
 
 interface WalletContextType {
   account: string | null
@@ -14,32 +30,14 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
-export function WalletProvider({ children }: { children: ReactNode }) {
+function WalletProviderInner({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<string | null>(null)
-
-  const { data, error, isReady, isPending, connect: wcConnect } = useAppKitWallet({
-    namespace: 'eip155',
-    onSuccess(parsedCaipAddress) {
-      // Extract address from CAIP format (eip155:1:0x...)
-      const address = parsedCaipAddress?.address || parsedCaipAddress
-      setAccount(address)
-    },
-    onError(error) {
-      console.error("Connection error:", error)
-    }
-  })
-
-  useEffect(() => {
-    if (data?.address) {
-      setAccount(data.address)
-    } else if (!data) {
-      setAccount(null)
-    }
-  }, [data])
+  const [isReady, setIsReady] = useState(false)
 
   const connect = async () => {
     try {
-      await wcConnect("walletConnect")
+      // Open the AppKit modal
+      await appKit.open()
     } catch (error) {
       console.error("Error connecting:", error)
       throw error
@@ -48,8 +46,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   const disconnect = async () => {
     try {
-      // For now, just clear the local state
-      // The actual disconnect will be handled by the wallet
+      await appKit.disconnect()
       setAccount(null)
     } catch (error) {
       console.error("Error disconnecting:", error)
@@ -57,17 +54,44 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  useEffect(() => {
+    // Check if wallet is already connected on mount
+    const checkConnection = async () => {
+      try {
+        if (typeof window !== "undefined" && window.ethereum) {
+          const accounts = await window.ethereum.request({ method: "eth_accounts" })
+          if (accounts.length > 0) {
+            setAccount(accounts[0])
+          }
+        }
+      } catch (error) {
+        console.error("Error checking wallet connection:", error)
+      }
+      setIsReady(true)
+    }
+
+    checkConnection()
+  }, [])
+
   return (
     <WalletContext.Provider value={{
       account,
-      isConnected: !!data?.address,
-      isReady: isReady || false,
-      isPending: isPending || false,
+      isConnected: !!account,
+      isReady,
+      isPending: false,
       connect,
       disconnect
     }}>
       {children}
     </WalletContext.Provider>
+  )
+}
+
+export function WalletProvider({ children }: { children: ReactNode }) {
+  return (
+    <WalletProviderInner>
+      {children}
+    </WalletProviderInner>
   )
 }
 
