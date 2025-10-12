@@ -2,10 +2,15 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
 import { createAppKit } from "@reown/appkit/react"
-import { base, baseSepolia } from "viem/chains"
+// import { base, baseSepolia } from "viem/chains"
+import { base, baseSepolia } from "@reown/appkit/networks"
+import { WagmiAdapter } from "@reown/appkit-adapter-wagmi"
+import type { AppKitNetwork } from "@reown/appkit/networks"
 
 // Get project ID from environment variables
 const PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ""
+
+export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [base]
 
 // Configure AppKit
 const appKit = createAppKit({
