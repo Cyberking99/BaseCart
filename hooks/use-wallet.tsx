@@ -16,6 +16,9 @@ const appKit = createAppKit({
     description: "Secure Escrow Shopping on Base",
     url: typeof window !== "undefined" ? window.location.origin : "",
     icons: ["/placeholder-logo.png"]
+  },
+  features: {
+    analytics: true,
   }
 })
 
