@@ -2,10 +2,11 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
 import { createAppKit } from "@reown/appkit/react"
-// import { base, baseSepolia } from "viem/chains"
 import { base, baseSepolia } from "@reown/appkit/networks"
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi"
 import type { AppKitNetwork } from "@reown/appkit/networks"
+import { createConfig, http } from 'wagmi'
+import { metaMask, coinbaseWallet, walletConnect, injected } from 'wagmi/connectors'
 
 // Get project ID from environment variables
 const PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ""
@@ -16,6 +17,28 @@ const wagmiAdapter = new WagmiAdapter({
   networks,
   projectId: PROJECT_ID,
   ssr: true,
+  connectors: [
+    metaMask(),
+    injected({
+      target: 'metaMask',
+    }),
+    injected({
+      target: 'trustWallet',
+    }),
+    coinbaseWallet({
+      appName: 'BaseCart',
+      appLogoUrl: '/placeholder-logo.png',
+    }),
+    walletConnect({
+      projectId: PROJECT_ID,
+      metadata: {
+        name: 'BaseCart',
+        description: 'Secure Escrow Shopping on Base',
+        url: typeof window !== 'undefined' ? window.location.origin : '',
+        icons: ['/placeholder-logo.png']
+      }
+    })
+  ],
 })
 
 // Configure AppKit
@@ -73,10 +96,21 @@ function WalletProviderInner({ children }: { children: ReactNode }) {
     // Check if wallet is already connected on mount
     const checkConnection = async () => {
       try {
-        if (typeof window !== "undefined" && window.ethereum) {
-          const accounts = await window.ethereum.request({ method: "eth_accounts" })
-          if (accounts.length > 0) {
-            setAccount(accounts[0])
+        if (typeof window !== "undefined") {
+          // Debug: Check what wallet providers are available
+          console.log("Available wallet providers:", {
+            ethereum: !!window.ethereum,
+            metamask: !!(window as any).ethereum?.isMetaMask,
+            trustWallet: !!(window as any).ethereum?.isTrust,
+            coinbase: !!(window as any).ethereum?.isCoinbaseWallet,
+          })
+          
+          if (window.ethereum) {
+            const accounts = await window.ethereum.request({ method: "eth_accounts" })
+            if (accounts.length > 0) {
+              setAccount(accounts[0])
+              console.log("Found connected account:", accounts[0])
+            }
           }
         }
       } catch (error) {
