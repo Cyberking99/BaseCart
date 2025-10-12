@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react"
 import { createAppKit } from "@reown/appkit/react"
-import { mainnet, base, polygon, arbitrum } from "viem/chains"
+import { base, baseSepolia } from "viem/chains"
 
 // Get project ID from environment variables
 const PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ""
@@ -10,7 +10,7 @@ const PROJECT_ID = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || ""
 // Configure AppKit
 const appKit = createAppKit({
   projectId: PROJECT_ID,
-  networks: [mainnet, base, polygon, arbitrum],
+  networks: [base, baseSepolia],
   metadata: {
     name: "BaseCart",
     description: "Secure Escrow Shopping on Base",
