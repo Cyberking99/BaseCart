@@ -20,15 +20,20 @@ const ERC20_ABI = [
   "function allowance(address, address) external view returns (uint256)",
 ]
 
-// Contract address - replace with your deployed contract address
-const STOREFRONT_ADDRESS = "0x0000000000000000000000000000000000000000" // Replace with actual address
+const STOREFRONT_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 export async function getContract(withSigner = false) {
-  if (typeof window === "undefined" || !window.ethereum) {
-    throw new Error("Ethereum provider not found")
+  if (typeof window === "undefined") {
+    throw new Error("Window is undefined")
   }
-
-  const provider = new ethers.BrowserProvider(window.ethereum)
+  
+  let provider: ethers.Provider
+  
+  if (window.ethereum) {
+    provider = new ethers.BrowserProvider(window.ethereum)
+  } else {
+    throw new Error("No Ethereum provider found. Please connect a wallet.")
+  }
 
   if (withSigner) {
     const signer = await provider.getSigner()
@@ -42,11 +47,17 @@ export async function getUsdcContract(withSigner = false) {
   const contract = await getContract()
   const usdcAddress = await contract.usdc()
 
-  if (typeof window === "undefined" || !window.ethereum) {
-    throw new Error("Ethereum provider not found")
+  if (typeof window === "undefined") {
+    throw new Error("Window is undefined")
   }
 
-  const provider = new ethers.BrowserProvider(window.ethereum)
+  let provider: ethers.Provider
+  
+  if (window.ethereum) {
+    provider = new ethers.BrowserProvider(window.ethereum)
+  } else {
+    throw new Error("No Ethereum provider found. Please connect a wallet.")
+  }
 
   if (withSigner) {
     const signer = await provider.getSigner()

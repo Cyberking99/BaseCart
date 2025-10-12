@@ -7,30 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { getEscrows, getProducts, confirmDelivery, requestRefund } from "@/lib/contract"
 import { useToast } from "@/hooks/use-toast"
+import { useWallet } from "@/hooks/use-wallet"
 
 export default function DashboardPage() {
   const [escrows, setEscrows] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [account, setAccount] = useState<string | null>(null)
+  const { account } = useWallet()
   const { toast } = useToast()
-
-  useEffect(() => {
-    async function checkWallet() {
-      if (typeof window.ethereum !== "undefined") {
-        try {
-          const accounts = await window.ethereum.request({ method: "eth_accounts" })
-          if (accounts.length > 0) {
-            setAccount(accounts[0])
-          }
-        } catch (error) {
-          console.error("Error checking wallet:", error)
-        }
-      }
-    }
-
-    checkWallet()
-  }, [])
 
   useEffect(() => {
     async function loadData() {
