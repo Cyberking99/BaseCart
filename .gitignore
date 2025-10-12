@@ -1,10 +1,13 @@
-node_modules/
-.next/
-dist/
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
 
 # Environment variables
-.env.local
-.env
-.env.development.local
-.env.test.local
-.env.production.local
+frontend/.env.local
+frontend/.env
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+contracts/.env
+contracts/node_modules
