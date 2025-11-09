@@ -192,7 +192,7 @@ contract BaseCartStore is ReentrancyGuard {
         string memory description,
         uint256 price,
         address paymentToken,
-        bool isActive
+        bool _isActive
     ) external onlyOwner storeActive {
         require(productId > 0 && productId <= productCount, "Invalid product ID");
         require(price > 0, "Price must be greater than zero");
@@ -207,9 +207,9 @@ contract BaseCartStore is ReentrancyGuard {
         product.description = description;
         product.price = price;
         product.paymentToken = paymentToken;
-        product.isActive = isActive;
+        product.isActive = _isActive;
         
-        emit ProductUpdated(productId, name, price, isActive);
+        emit ProductUpdated(productId, name, price, _isActive);
     }
     
     /**

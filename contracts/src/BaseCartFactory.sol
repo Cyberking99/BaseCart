@@ -36,7 +36,7 @@ contract BaseCartFactory is Ownable {
     /**
      * @dev Constructor sets the fee collector to the contract deployer
      */
-    constructor() {
+    constructor() Ownable(msg.sender) {
         feeCollector = msg.sender;
     }
     
