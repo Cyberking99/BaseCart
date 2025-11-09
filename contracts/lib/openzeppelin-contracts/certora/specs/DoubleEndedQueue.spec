@@ -23,25 +23,25 @@ definition full() returns bool = length() == max_uint128;
 
 /*
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Rule: front points to the first index and back points to the last one                                               │
+│ Invariant: empty() is length 0 and no element exists                                                                │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-rule emptiness() {
-    assert empty() <=> length() == 0;
-}
+invariant emptiness()
+    empty() <=> length() == 0
+    filtered { f -> !f.isView }
 
 /*
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Invariant: front points to the first index and back points to the last one                                          │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-rule queueFront() {
-    assert at_(0) == front();
-}
+invariant queueFront()
+    at_(0) == front()
+    filtered { f -> !f.isView }
 
-rule queueBack() {
-    assert at_(require_uint256(length() - 1)) == back();
-}
+invariant queueBack()
+    at_(require_uint256(length() - 1)) == back()
+    filtered { f -> !f.isView }
 
 /*
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐

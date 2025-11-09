@@ -61,7 +61,6 @@ require('@nomicfoundation/hardhat-ethers');
 require('hardhat-exposed');
 require('hardhat-gas-reporter');
 require('hardhat-ignore-warnings');
-require('hardhat-predeploy');
 require('solidity-coverage');
 require('solidity-docgen');
 

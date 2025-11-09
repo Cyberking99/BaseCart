@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.5.0) (utils/Strings.sol)
+// OpenZeppelin Contracts (last updated v5.4.0) (utils/Strings.sol)
 
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
 import {Math} from "./math/Math.sol";
 import {SafeCast} from "./math/SafeCast.sol";
 import {SignedMath} from "./math/SignedMath.sol";
-import {Bytes} from "./Bytes.sol";
 
 /**
  * @dev String operations.
@@ -130,27 +129,10 @@ library Strings {
     }
 
     /**
-     * @dev Converts a `bytes` buffer to its ASCII `string` hexadecimal representation.
-     */
-    function toHexString(bytes memory input) internal pure returns (string memory) {
-        unchecked {
-            bytes memory buffer = new bytes(2 * input.length + 2);
-            buffer[0] = "0";
-            buffer[1] = "x";
-            for (uint256 i = 0; i < input.length; ++i) {
-                uint8 v = uint8(input[i]);
-                buffer[2 * i + 2] = HEX_DIGITS[v >> 4];
-                buffer[2 * i + 3] = HEX_DIGITS[v & 0xf];
-            }
-            return string(buffer);
-        }
-    }
-
-    /**
      * @dev Returns true if the two strings are equal.
      */
     function equal(string memory a, string memory b) internal pure returns (bool) {
-        return Bytes.equal(bytes(a), bytes(b));
+        return bytes(a).length == bytes(b).length && keccak256(bytes(a)) == keccak256(bytes(b));
     }
 
     /**
@@ -466,7 +448,7 @@ library Strings {
         bytes memory output = new bytes(2 * buffer.length); // worst case scenario
         uint256 outputLength = 0;
 
-        for (uint256 i = 0; i < buffer.length; ++i) {
+        for (uint256 i; i < buffer.length; ++i) {
             bytes1 char = bytes1(_unsafeReadBytesOffset(buffer, i));
             if (((SPECIAL_CHARS_LOOKUP & (1 << uint8(char))) != 0)) {
                 output[outputLength++] = "\\";

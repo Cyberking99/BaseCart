@@ -184,7 +184,7 @@ contract BaseCartStore is ReentrancyGuard {
      * @param description New product description
      * @param price New product price
      * @param paymentToken New payment token address
-     * @param isActive Whether the product is active
+     * @param _isActive Whether the product is active
      */
     function updateProduct(
         uint256 productId,

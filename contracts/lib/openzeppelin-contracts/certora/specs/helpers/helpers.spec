@@ -1,7 +1,6 @@
 // environment
-definition nonzero(address account) returns bool = account != 0;
 definition nonpayable(env e) returns bool = e.msg.value == 0;
-definition nonzerosender(env e) returns bool = nonzero(e.msg.sender);
+definition nonzerosender(env e) returns bool = e.msg.sender != 0;
 definition sanity(env e) returns bool = clock(e) > 0 && clock(e) <= max_uint48;
 
 // math

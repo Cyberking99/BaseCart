@@ -31,29 +31,18 @@ definition isDisabled()      returns bool = version() == max_uint64;
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
 invariant notInitializing()
-    !initializing()
-    filtered { f ->
-        f.selector != sig:nested_init_init().selector &&
-        f.selector != sig:nested_init_reinit(uint64).selector &&
-        f.selector != sig:nested_reinit_init(uint64).selector &&
-        f.selector != sig:nested_reinit_reinit(uint64,uint64).selector
-    }
+    !initializing();
 
 /*
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Rule: The version cannot decrease & disable state is irrevocable.                                                   │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-rule increasingVersion(env e, method f) filtered { f ->
-    f.selector != sig:nested_init_init().selector &&
-    f.selector != sig:nested_init_reinit(uint64).selector &&
-    f.selector != sig:nested_reinit_init(uint64).selector &&
-    f.selector != sig:nested_reinit_reinit(uint64,uint64).selector
-} {
+rule increasingVersion(env e) {
     uint64 versionBefore = version();
     bool disabledBefore = isDisabled();
 
-    calldataarg args;
+    method f; calldataarg args;
     f(e, args);
 
     assert versionBefore <= version(), "_initialized must only increase";

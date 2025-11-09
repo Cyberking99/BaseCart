@@ -30,20 +30,12 @@ methods {
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
 // Uniformly handle scheduling of batched and non-batched operations.
-function helperScheduleWithRevert(env e, method f, bytes32 id, uint256 delay) returns bool {
+function helperScheduleWithRevert(env e, method f, bytes32 id, uint256 delay) {
     if (f.selector == sig:schedule(address, uint256, bytes, bytes32, bytes32, uint256).selector) {
         address target; uint256 value; bytes data; bytes32 predecessor; bytes32 salt;
         require hashOperation(target, value, data, predecessor, salt) == id; // Correlation
         schedule@withrevert(e, target, value, data, predecessor, salt, delay);
     } else if (f.selector == sig:scheduleBatch(address[], uint256[], bytes[], bytes32, bytes32, uint256).selector) {
-
-        // NOTE: while the "single" correlation requirement works, the prover is not able to deal with the the "batch"
-        // correlation requirement. This requirement is necessary to ensure that the call arguments correspond to the
-        // operation ID that we are observing. This failure, from the prover, to "identify" a set of arguments that
-        // correspond to the operation ID causes vacuity.
-        //
-        // Therefore, this path should not be used for now. Using it will cause the sanity check to fail.
-
         address[] targets; uint256[] values; bytes[] payloads; bytes32 predecessor; bytes32 salt;
         require hashOperationBatch(targets, values, payloads, predecessor, salt) == id; // Correlation
         scheduleBatch@withrevert(e, targets, values, payloads, predecessor, salt, delay);
@@ -51,24 +43,15 @@ function helperScheduleWithRevert(env e, method f, bytes32 id, uint256 delay) re
         calldataarg args;
         f@withrevert(e, args);
     }
-    return !lastReverted;
 }
 
 // Uniformly handle execution of batched and non-batched operations.
-function helperExecuteWithRevert(env e, method f, bytes32 id, bytes32 predecessor) returns bool {
+function helperExecuteWithRevert(env e, method f, bytes32 id, bytes32 predecessor) {
     if (f.selector == sig:execute(address, uint256, bytes, bytes32, bytes32).selector) {
         address target; uint256 value; bytes data; bytes32 salt;
         require hashOperation(target, value, data, predecessor, salt) == id; // Correlation
         execute@withrevert(e, target, value, data, predecessor, salt);
     } else if (f.selector == sig:executeBatch(address[], uint256[], bytes[], bytes32, bytes32).selector) {
-
-        // NOTE: while the "single" correlation requirement works, the prover is not able to deal with the the "batch"
-        // correlation requirement. This requirement is necessary to ensure that the call arguments correspond to the
-        // operation ID that we are observing. This failure, from the prover, to "identify" a set of arguments that
-        // correspond to the operation ID causes vacuity.
-        //
-        // Therefore, this path should not be used for now. Using it will cause the sanity check to fail.
-
         address[] targets; uint256[] values; bytes[] payloads; bytes32 salt;
         require hashOperationBatch(targets, values, payloads, predecessor, salt) == id; // Correlation
         executeBatch@withrevert(e, targets, values, payloads, predecessor, salt);
@@ -76,7 +59,6 @@ function helperExecuteWithRevert(env e, method f, bytes32 id, bytes32 predecesso
         calldataarg args;
         f@withrevert(e, args);
     }
-    return !lastReverted;
 }
 
 /*
@@ -99,52 +81,46 @@ definition state(env e, bytes32 id)     returns uint8 = (isUnset(e, id) ? UNSET(
 │ Invariants: consistency of accessors                                                                                │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-rule isOperationCheck(env e, bytes32 id) {
-    assert isOperation(e, id) <=> getTimestamp(id) > 0;
-}
+invariant isOperationCheck(env e, bytes32 id)
+    isOperation(e, id) <=> getTimestamp(id) > 0
+    filtered { f -> !f.isView }
 
-rule isOperationPendingCheck(env e, bytes32 id) {
-    assert isOperationPending(e, id) <=> getTimestamp(id) > DONE_TIMESTAMP();
-}
+invariant isOperationPendingCheck(env e, bytes32 id)
+    isOperationPending(e, id) <=> getTimestamp(id) > DONE_TIMESTAMP()
+    filtered { f -> !f.isView }
 
-rule isOperationDoneCheck(env e, bytes32 id) {
-    assert isOperationDone(e, id) <=> getTimestamp(id) == DONE_TIMESTAMP();
-}
+invariant isOperationDoneCheck(env e, bytes32 id)
+    isOperationDone(e, id) <=> getTimestamp(id) == DONE_TIMESTAMP()
+    filtered { f -> !f.isView }
 
-rule isOperationReadyCheck(env e, bytes32 id) {
-    assert isOperationReady(e, id) <=> (isOperationPending(e, id) && getTimestamp(id) <= e.block.timestamp);
-}
+invariant isOperationReadyCheck(env e, bytes32 id)
+    isOperationReady(e, id) <=> (isOperationPending(e, id) && getTimestamp(id) <= e.block.timestamp)
+    filtered { f -> !f.isView }
 
 /*
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Invariant: a proposal id is either unset, pending or done                                                           │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-rule stateConsistency(env e, bytes32 id) {
+invariant stateConsistency(bytes32 id, env e)
     // Check states are mutually exclusive
-    assert isUnset(e, id)   <=> (!isPending(e, id) && !isDone(e, id)   );
-    assert isPending(e, id) <=> (!isUnset(e, id)   && !isDone(e, id)   );
-    assert isDone(e, id)    <=> (!isUnset(e, id)   && !isPending(e, id));
-
+    (isUnset(e, id)   <=> (!isPending(e, id) && !isDone(e, id)   )) &&
+    (isPending(e, id) <=> (!isUnset(e, id)   && !isDone(e, id)   )) &&
+    (isDone(e, id)    <=> (!isUnset(e, id)   && !isPending(e, id))) &&
     // Check that the state helper behaves as expected:
-    assert isUnset(e, id)   <=> state(e, id) == UNSET();
-    assert isPending(e, id) <=> state(e, id) == PENDING();
-    assert isDone(e, id)    <=> state(e, id) == DONE();
-
+    (isUnset(e, id)   <=> state(e, id) == UNSET()              ) &&
+    (isPending(e, id) <=> state(e, id) == PENDING()            ) &&
+    (isDone(e, id)    <=> state(e, id) == DONE()               ) &&
     // Check substate
-    assert isOperationReady(e, id) => isPending(e, id);
-}
+    isOperationReady(e, id) => isPending(e, id)
+    filtered { f -> !f.isView }
 
 /*
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Rule: state transition rules                                                                                        │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-rule stateTransition(bytes32 id, env e, method f, calldataarg args) filtered { f ->
-    f.selector != sig:hashOperationBatch(address[], uint256[], bytes[], bytes32, bytes32).selector &&
-    f.selector != sig:scheduleBatch(address[], uint256[], bytes[], bytes32, bytes32, uint256).selector &&
-    f.selector != sig:executeBatch(address[], uint256[], bytes[], bytes32, bytes32).selector
-} {
+rule stateTransition(bytes32 id, env e, method f, calldataarg args) {
     require e.block.timestamp > 1; // Sanity
 
     uint8 stateBefore = state(e, id);
@@ -180,13 +156,10 @@ rule stateTransition(bytes32 id, env e, method f, calldataarg args) filtered { f
 │ Rule: minimum delay can only be updated through a timelock execution                                                │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-rule minDelayOnlyChange(env e, method f, calldataarg args) filtered { f ->
-    f.selector != sig:hashOperationBatch(address[], uint256[], bytes[], bytes32, bytes32).selector &&
-    f.selector != sig:scheduleBatch(address[], uint256[], bytes[], bytes32, bytes32, uint256).selector &&
-    f.selector != sig:executeBatch(address[], uint256[], bytes[], bytes32, bytes32).selector
-} {
+rule minDelayOnlyChange(env e) {
     uint256 delayBefore = getMinDelay();
 
+    method f; calldataarg args;
     f(e, args);
 
     assert delayBefore != getMinDelay() => (e.msg.sender == currentContract && f.selector == sig:updateDelay(uint256).selector), "Unauthorized delay update";
@@ -198,8 +171,8 @@ rule minDelayOnlyChange(env e, method f, calldataarg args) filtered { f ->
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
 rule schedule(env e, method f, bytes32 id, uint256 delay) filtered { f ->
-    f.selector == sig:schedule(address, uint256, bytes, bytes32, bytes32, uint256).selector
-// || f.selector == sig:scheduleBatch(address[], uint256[], bytes[], bytes32, bytes32, uint256).selector
+    f.selector == sig:schedule(address, uint256, bytes, bytes32, bytes32, uint256).selector ||
+    f.selector == sig:scheduleBatch(address[], uint256[], bytes[], bytes32, bytes32, uint256).selector
 } {
     require nonpayable(e);
 
@@ -214,7 +187,8 @@ rule schedule(env e, method f, bytes32 id, uint256 delay) filtered { f ->
     bool  isDelaySufficient = delay >= getMinDelay();
     bool  isProposerBefore  = hasRole(PROPOSER_ROLE(), e.msg.sender);
 
-    bool success = helperScheduleWithRevert(e, f, id, delay);
+    helperScheduleWithRevert(e, f, id, delay);
+    bool success = !lastReverted;
 
     // liveness
     assert success <=> (
@@ -237,8 +211,8 @@ rule schedule(env e, method f, bytes32 id, uint256 delay) filtered { f ->
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
 rule execute(env e, method f, bytes32 id, bytes32 predecessor) filtered { f ->
-    f.selector == sig:execute(address, uint256, bytes, bytes32, bytes32).selector
-// || f.selector == sig:executeBatch(address[], uint256[], bytes[], bytes32, bytes32).selector
+    f.selector == sig:execute(address, uint256, bytes, bytes32, bytes32).selector ||
+    f.selector == sig:executeBatch(address[], uint256[], bytes[], bytes32, bytes32).selector
 } {
     bytes32 otherId; uint256 otherTimestamp = getTimestamp(otherId);
 
@@ -247,7 +221,8 @@ rule execute(env e, method f, bytes32 id, bytes32 predecessor) filtered { f ->
     bool  isExecutorOrOpen       = hasRole(EXECUTOR_ROLE(), e.msg.sender) || hasRole(EXECUTOR_ROLE(), 0);
     bool  predecessorDependency  = predecessor == to_bytes32(0) || isDone(e, predecessor);
 
-    bool success = helperExecuteWithRevert(e, f, id, predecessor);
+    helperExecuteWithRevert(e, f, id, predecessor);
+    bool success = !lastReverted;
 
     // The underlying transaction can revert, and that would cause the execution to revert. We can check that all non
     // reverting calls meet the requirements in terms of proposal readiness, access control and predecessor dependency.

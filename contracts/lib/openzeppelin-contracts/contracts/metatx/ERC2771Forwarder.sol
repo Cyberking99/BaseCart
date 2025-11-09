@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.5.0) (metatx/ERC2771Forwarder.sol)
+// OpenZeppelin Contracts (last updated v5.3.0) (metatx/ERC2771Forwarder.sol)
 
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.20;
 
 import {ERC2771Context} from "./ERC2771Context.sol";
 import {ECDSA} from "../utils/cryptography/ECDSA.sol";
@@ -61,7 +61,7 @@ contract ERC2771Forwarder is EIP712, Nonces {
         bytes signature;
     }
 
-    bytes32 internal constant FORWARD_REQUEST_TYPEHASH =
+    bytes32 internal constant _FORWARD_REQUEST_TYPEHASH =
         keccak256(
             "ForwardRequest(address from,address to,uint256 value,uint256 gas,uint256 nonce,uint48 deadline,bytes data)"
         );
@@ -222,7 +222,7 @@ contract ERC2771Forwarder is EIP712, Nonces {
         (address recovered, ECDSA.RecoverError err, ) = _hashTypedDataV4(
             keccak256(
                 abi.encode(
-                    FORWARD_REQUEST_TYPEHASH,
+                    _FORWARD_REQUEST_TYPEHASH,
                     request.from,
                     request.to,
                     request.value,
@@ -287,7 +287,7 @@ contract ERC2771Forwarder is EIP712, Nonces {
             uint256 gasLeft;
 
             assembly ("memory-safe") {
-                success := call(reqGas, to, value, add(data, 0x20), mload(data), 0x00, 0x00)
+                success := call(reqGas, to, value, add(data, 0x20), mload(data), 0, 0)
                 gasLeft := gas()
             }
 
@@ -318,9 +318,9 @@ contract ERC2771Forwarder is EIP712, Nonces {
             // |-----------|----------|--------------------------------------------------------------------|
             // |           |          |                                                           result ↓ |
             // | 0x00:0x1F | selector | 0x0000000000000000000000000000000000000000000000000000000000000001 |
-            success := staticcall(gas(), target, add(encodedParams, 0x20), mload(encodedParams), 0x00, 0x20)
+            success := staticcall(gas(), target, add(encodedParams, 0x20), mload(encodedParams), 0, 0x20)
             returnSize := returndatasize()
-            returnValue := mload(0x00)
+            returnValue := mload(0)
         }
 
         return success && returnSize >= 0x20 && returnValue > 0;
