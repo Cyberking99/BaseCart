@@ -993,10 +993,16 @@ contract BaseCartStoreTest is Test {
             false
         );
 
-        (, string memory name,, uint256 price, address _token, bool _digital, bool _unlimited, uint256 _inv, bool active) = _getProduct(productId);
+        // Verify updates
+        (, string memory name,,,,,,,) = _getProduct(productId);
         assertEq(name, "Updated Product", "Product should be updated");
+        
+        (,,, uint256 price,,,,,) = _getProduct(productId);
         assertEq(price, 200 ether, "Price should be updated");
+        
+        (,,,,,,, uint256 _inv, bool active) = _getProduct(productId);
         assertEq(active, false, "Product should be inactive");
+        assertEq(_inv, 50, "Inventory should not change");
 
         vm.stopPrank();
     }
@@ -1030,6 +1036,847 @@ contract BaseCartStoreTest is Test {
         vm.stopPrank();
     }
 
+    // ============ updateInventory() TESTS ============
+
+    /**
+     * @dev Test successful inventory update for physical product
+     */
+    function test_UpdateInventory_Success_PhysicalProduct() public {
+        vm.startPrank(owner);
+
+        // Create a physical product with initial inventory
+        uint256 productId = store.addProduct(
+            "Physical Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false, // isDigital
+            false, // isUnlimited
+            100    // initial inventory
+        );
+
+        uint256 newInventory = 200;
+
+        vm.expectEmit(true, false, false, true);
+        emit InventoryUpdated(productId, newInventory);
+
+        store.updateInventory(productId, newInventory);
+
+        (,,,,,,, uint256 inv,) = _getProduct(productId);
+        assertEq(inv, newInventory, "Inventory should be updated");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test successful inventory update for digital product with limited inventory
+     */
+    function test_UpdateInventory_Success_DigitalProductLimited() public {
+        vm.startPrank(owner);
+
+        // Create a digital product with limited inventory
+        uint256 productId = store.addProduct(
+            "Digital Product",
+            "Description",
+            50 ether,
+            address(paymentToken),
+            true,  // isDigital
+            false, // isUnlimited
+            10     // initial inventory
+        );
+
+        uint256 newInventory = 25;
+
+        store.updateInventory(productId, newInventory);
+
+        (,,,,,,, uint256 inv,) = _getProduct(productId);
+        assertEq(inv, newInventory, "Inventory should be updated");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that inventory can be set to zero for physical products
+     */
+    function test_UpdateInventory_Success_SetToZero() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            100
+        );
+
+        store.updateInventory(productId, 0);
+
+        (,,,,,,, uint256 inv,) = _getProduct(productId);
+        assertEq(inv, 0, "Inventory should be zero");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that inventory can be increased
+     */
+    function test_UpdateInventory_Success_IncreaseInventory() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        store.updateInventory(productId, 150);
+
+        (,,,,,,, uint256 inv,) = _getProduct(productId);
+        assertEq(inv, 150, "Inventory should be increased");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that inventory can be decreased
+     */
+    function test_UpdateInventory_Success_DecreaseInventory() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            100
+        );
+
+        store.updateInventory(productId, 25);
+
+        (,,,,,,, uint256 inv,) = _getProduct(productId);
+        assertEq(inv, 25, "Inventory should be decreased");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that InventoryUpdated event is emitted
+     */
+    function test_UpdateInventory_EmitsInventoryUpdatedEvent() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            100
+        );
+
+        uint256 newInventory = 75;
+
+        vm.expectEmit(true, false, false, true);
+        emit InventoryUpdated(productId, newInventory);
+
+        store.updateInventory(productId, newInventory);
+
+        vm.stopPrank();
+    }
+
+    // ============ updateInventory() REVERT CASES ============
+
+    /**
+     * @dev Test revert when product ID is invalid (zero)
+     */
+    function test_UpdateInventory_Revert_InvalidProductId_Zero() public {
+        vm.startPrank(owner);
+
+        vm.expectRevert("Invalid product ID");
+        store.updateInventory(0, 100);
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test revert when product ID is invalid (too high)
+     */
+    function test_UpdateInventory_Revert_InvalidProductId_TooHigh() public {
+        vm.startPrank(owner);
+
+        store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        vm.expectRevert("Invalid product ID");
+        store.updateInventory(999, 100);
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test revert when product has unlimited inventory
+     */
+    function test_UpdateInventory_Revert_UnlimitedProduct() public {
+        vm.startPrank(owner);
+
+        // Create unlimited product
+        uint256 productId = store.addProduct(
+            "Unlimited Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            true,  // isDigital
+            true,  // isUnlimited
+            0
+        );
+
+        vm.expectRevert("Cannot update inventory for unlimited products");
+        store.updateInventory(productId, 100);
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test revert when caller is not the owner
+     */
+    function test_UpdateInventory_Revert_NotOwner() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        vm.stopPrank();
+
+        // Try to update as non-owner
+        vm.prank(buyer);
+        vm.expectRevert("Only store owner can call this function");
+        store.updateInventory(productId, 100);
+    }
+
+    /**
+     * @dev Test revert when store is inactive
+     */
+    function test_UpdateInventory_Revert_StoreNotActive() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Deactivate store
+        store.setStoreActive(false);
+
+        vm.expectRevert("Store is not active");
+        store.updateInventory(productId, 100);
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that inventory can be updated after reactivating store
+     */
+    function test_UpdateInventory_Success_AfterReactivatingStore() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Deactivate store
+        store.setStoreActive(false);
+
+        // Try to update (should fail)
+        vm.expectRevert("Store is not active");
+        store.updateInventory(productId, 100);
+
+        // Reactivate store
+        store.setStoreActive(true);
+
+        // Now should succeed
+        store.updateInventory(productId, 150);
+
+        (,,,,,,, uint256 inv,) = _getProduct(productId);
+        assertEq(inv, 150, "Inventory should be updated after reactivation");
+
+        vm.stopPrank();
+    }
+
+    // ============ createOrder() TESTS ============
+
+    /**
+     * @dev Test successful order creation for physical product
+     */
+    function test_CreateOrder_Success_PhysicalProduct() public {
+        vm.startPrank(owner);
+
+        // Create a physical product
+        uint256 productId = store.addProduct(
+            "Physical Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false, // isDigital
+            false, // isUnlimited
+            100    // inventory
+        );
+
+        vm.stopPrank();
+
+        // Create order as buyer
+        vm.prank(buyer);
+        uint256 quantity = 5;
+        bool useEscrow = false;
+
+        vm.expectEmit(true, true, false, true);
+        emit OrderCreated(1, buyer, productId, 100 ether * quantity);
+        emit InventoryUpdated(productId, 95); // 100 - 5
+
+        uint256 orderId = store.createOrder(productId, quantity, useEscrow);
+
+        // Check order ID
+        assertEq(orderId, 1, "Order ID should be 1");
+        assertEq(store.orderCount(), 1, "Order count should be 1");
+
+        // Verify order fields
+        (
+            uint256 id,
+            address orderBuyer,
+            uint256 orderProductId,
+            uint256 orderQuantity,
+            uint256 totalPrice,
+            address orderPaymentToken,
+            BaseCartStore.OrderStatus status,
+            uint256 timestamp,
+            bool isEscrow
+        ) = _getOrder(orderId);
+
+        assertEq(id, orderId, "Order ID should match");
+        assertEq(orderBuyer, buyer, "Buyer should match");
+        assertEq(orderProductId, productId, "Product ID should match");
+        assertEq(orderQuantity, quantity, "Quantity should match");
+        assertEq(totalPrice, 100 ether * quantity, "Total price should match");
+        assertEq(orderPaymentToken, address(paymentToken), "Payment token should match");
+        assertEq(uint256(status), uint256(BaseCartStore.OrderStatus.Pending), "Status should be Pending");
+        assertEq(isEscrow, false, "Should not use escrow for non-escrow order");
+
+        // Verify inventory was reduced
+        (,,,,,,, uint256 inv,) = _getProduct(productId);
+        assertEq(inv, 95, "Inventory should be reduced by quantity");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test successful order creation for digital product
+     */
+    function test_CreateOrder_Success_DigitalProduct() public {
+        vm.startPrank(owner);
+
+        // Create a digital product
+        uint256 productId = store.addProduct(
+            "Digital Product",
+            "Description",
+            50 ether,
+            address(paymentToken),
+            true,  // isDigital
+            false, // isUnlimited
+            10     // inventory
+        );
+
+        vm.stopPrank();
+
+        // Create order as buyer
+        vm.prank(buyer);
+        uint256 quantity = 3;
+
+        uint256 orderId = store.createOrder(productId, quantity, false);
+
+        assertEq(orderId, 1, "Order ID should be created");
+
+        // Verify order fields
+        (,,,,,, BaseCartStore.OrderStatus status, uint256 timestamp, bool isEscrow) = _getOrder(orderId);
+        assertEq(uint256(status), uint256(BaseCartStore.OrderStatus.Pending), "Status should be Pending");
+        assertEq(isEscrow, false, "Digital products should not use escrow even if requested");
+        assertGt(timestamp, 0, "Timestamp should be set");
+
+        // Verify inventory was reduced
+        (,,,,,,, uint256 inv,) = _getProduct(productId);
+        assertEq(inv, 7, "Inventory should be reduced by quantity");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test successful order creation for unlimited product
+     */
+    function test_CreateOrder_Success_UnlimitedProduct() public {
+        vm.startPrank(owner);
+
+        // Create an unlimited product
+        uint256 productId = store.addProduct(
+            "Unlimited Product",
+            "Description",
+            75 ether,
+            address(paymentToken),
+            true,  // isDigital
+            true,  // isUnlimited
+            0      // inventory not needed
+        );
+
+        vm.stopPrank();
+
+        // Create order as buyer
+        vm.prank(buyer);
+        uint256 quantity = 100;
+
+        uint256 orderId = store.createOrder(productId, quantity, false);
+
+        assertEq(orderId, 1, "Order ID should be created");
+
+        // Verify order total price
+        (uint256 _id, address _buyer, uint256 _productId, uint256 _quantity, uint256 totalPrice, address _paymentToken, BaseCartStore.OrderStatus _status, uint256 _timestamp, bool _isEscrow) = _getOrder(orderId);
+        assertEq(totalPrice, 75 ether * quantity, "Total price should be correct");
+
+        // Verify inventory was not reduced (unlimited)
+        (,,,,,,, uint256 inv,) = _getProduct(productId);
+        assertEq(inv, 0, "Inventory should remain 0 for unlimited products");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test order creation with escrow for physical product
+     */
+    function test_CreateOrder_Success_WithEscrow_PhysicalProduct() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Physical Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false, // isDigital
+            false, // isUnlimited
+            50
+        );
+
+        vm.stopPrank();
+
+        // Create order with escrow
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 2, true);
+
+        (uint256 _id, address _buyer, uint256 _productId, uint256 _quantity, uint256 _totalPrice, address _paymentToken, BaseCartStore.OrderStatus _status, uint256 _timestamp, bool isEscrow) = _getOrder(orderId);
+        assertEq(isEscrow, true, "Should use escrow for physical product with escrow requested");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that escrow is not used for digital products even if requested
+     */
+    function test_CreateOrder_Success_EscrowNotUsedForDigital() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Digital Product",
+            "Description",
+            50 ether,
+            address(paymentToken),
+            true,  // isDigital
+            false,
+            10
+        );
+
+        vm.stopPrank();
+
+        // Try to create order with escrow for digital product
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, true);
+
+        (uint256 _id, address _buyer, uint256 _productId, uint256 _quantity, uint256 _totalPrice, address _paymentToken, BaseCartStore.OrderStatus _status, uint256 _timestamp, bool isEscrow) = _getOrder(orderId);
+        assertEq(isEscrow, false, "Digital products should not use escrow");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that orderCount increments correctly
+     */
+    function test_CreateOrder_IncrementsOrderCount() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            100
+        );
+
+        vm.stopPrank();
+
+        // Create first order
+        vm.prank(buyer);
+        uint256 orderId1 = store.createOrder(productId, 1, false);
+        assertEq(orderId1, 1, "First order ID should be 1");
+        assertEq(store.orderCount(), 1, "Order count should be 1");
+
+        // Create second order
+        vm.prank(buyer);
+        uint256 orderId2 = store.createOrder(productId, 2, false);
+        assertEq(orderId2, 2, "Second order ID should be 2");
+        assertEq(store.orderCount(), 2, "Order count should be 2");
+
+        // Create third order
+        vm.prank(buyer);
+        uint256 orderId3 = store.createOrder(productId, 3, false);
+        assertEq(orderId3, 3, "Third order ID should be 3");
+        assertEq(store.orderCount(), 3, "Order count should be 3");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that total price is calculated correctly
+     */
+    function test_CreateOrder_CalculatesTotalPriceCorrectly() public {
+        vm.startPrank(owner);
+
+        uint256 productPrice = 123 ether;
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            productPrice,
+            address(paymentToken),
+            false,
+            false,
+            100
+        );
+
+        vm.stopPrank();
+
+        // Create order with quantity 7
+        vm.prank(buyer);
+        uint256 quantity = 7;
+        uint256 orderId = store.createOrder(productId, quantity, false);
+
+        (uint256 _id, address _buyer, uint256 _productId, uint256 _quantity, uint256 totalPrice, address _paymentToken, BaseCartStore.OrderStatus _status, uint256 _timestamp, bool _isEscrow) = _getOrder(orderId);
+        assertEq(totalPrice, productPrice * quantity, "Total price should be price * quantity");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that OrderCreated event is emitted
+     */
+    function test_CreateOrder_EmitsOrderCreatedEvent() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 quantity = 2;
+        uint256 expectedTotalPrice = 100 ether * quantity;
+
+        vm.expectEmit(true, true, false, true);
+        emit OrderCreated(1, buyer, productId, expectedTotalPrice);
+
+        store.createOrder(productId, quantity, false);
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that inventory is reduced correctly for multiple orders
+     */
+    function test_CreateOrder_ReducesInventoryCorrectly() public {
+        vm.startPrank(owner);
+
+        uint256 initialInventory = 100;
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            initialInventory
+        );
+
+        vm.stopPrank();
+
+        // Create multiple orders
+        vm.prank(buyer);
+        store.createOrder(productId, 10, false);
+
+        (,,,,,,, uint256 inv,) = _getProduct(productId);
+        assertEq(inv, 90, "Inventory should be 90 after first order");
+
+        vm.prank(buyer);
+        store.createOrder(productId, 20, false);
+
+        (,,,,,,, inv,) = _getProduct(productId);
+        assertEq(inv, 70, "Inventory should be 70 after second order");
+
+        vm.prank(buyer);
+        store.createOrder(productId, 30, false);
+
+        (,,,,,,, inv,) = _getProduct(productId);
+        assertEq(inv, 40, "Inventory should be 40 after third order");
+
+        vm.stopPrank();
+    }
+
+    // ============ createOrder() REVERT CASES ============
+
+    /**
+     * @dev Test revert when product ID is invalid (zero)
+     */
+    function test_CreateOrder_Revert_InvalidProductId_Zero() public {
+        vm.prank(buyer);
+
+        vm.expectRevert("Invalid product ID");
+        store.createOrder(0, 1, false);
+    }
+
+    /**
+     * @dev Test revert when product ID is invalid (too high)
+     */
+    function test_CreateOrder_Revert_InvalidProductId_TooHigh() public {
+        vm.startPrank(owner);
+
+        store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        vm.expectRevert("Invalid product ID");
+        store.createOrder(999, 1, false);
+    }
+
+    /**
+     * @dev Test revert when quantity is zero
+     */
+    function test_CreateOrder_Revert_ZeroQuantity() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        vm.expectRevert("Quantity must be greater than zero");
+        store.createOrder(productId, 0, false);
+    }
+
+    /**
+     * @dev Test revert when product is not active
+     */
+    function test_CreateOrder_Revert_ProductNotActive() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Deactivate product
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false // isActive = false
+        );
+
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        vm.expectRevert("Product is not active");
+        store.createOrder(productId, 1, false);
+    }
+
+    /**
+     * @dev Test revert when insufficient inventory
+     */
+    function test_CreateOrder_Revert_InsufficientInventory() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            10 // Only 10 in inventory
+        );
+
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        vm.expectRevert("Insufficient inventory");
+        store.createOrder(productId, 11, false); // Try to order 11
+    }
+
+    /**
+     * @dev Test revert when store is inactive
+     */
+    function test_CreateOrder_Revert_StoreNotActive() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Deactivate store
+        store.setStoreActive(false);
+
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        vm.expectRevert("Store is not active");
+        store.createOrder(productId, 1, false);
+    }
+
+    /**
+     * @dev Test that order can be created after reactivating store
+     */
+    function test_CreateOrder_Success_AfterReactivatingStore() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Deactivate store
+        store.setStoreActive(false);
+
+        vm.stopPrank();
+
+        // Try to create order (should fail)
+        vm.prank(buyer);
+        vm.expectRevert("Store is not active");
+        store.createOrder(productId, 1, false);
+
+        // Reactivate store
+        vm.prank(owner);
+        store.setStoreActive(true);
+
+        // Now should succeed
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+        assertEq(orderId, 1, "Order should be created after reactivation");
+    }
+
+    /**
+     * @dev Test that unlimited products can have any quantity
+     */
+    function test_CreateOrder_Success_UnlimitedProductAnyQuantity() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Unlimited Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            true,  // isDigital
+            true,  // isUnlimited
+            0
+        );
+
+        vm.stopPrank();
+
+        // Can order any quantity for unlimited products
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 10000, false);
+        assertEq(orderId, 1, "Order should be created with large quantity");
+
+        vm.stopPrank();
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
@@ -1052,6 +1899,28 @@ contract BaseCartStoreTest is Test {
     {
         // Public mapping getter returns all fields separately
         return store.products(_productId);
+    }
+
+    /**
+     * @dev Helper function to get order data - returns tuple directly
+     */
+    function _getOrder(uint256 _orderId)
+        internal
+        view
+        returns (
+            uint256,
+            address,
+            uint256,
+            uint256,
+            uint256,
+            address,
+            BaseCartStore.OrderStatus,
+            uint256,
+            bool
+        )
+    {
+        // Public mapping getter returns all fields separately
+        return store.orders(_orderId);
     }
 }
 
