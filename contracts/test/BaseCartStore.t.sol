@@ -507,6 +507,529 @@ contract BaseCartStoreTest is Test {
         vm.stopPrank();
     }
 
+    // ============ updateProduct() TESTS ============
+
+    /**
+     * @dev Test successful product update with all fields
+     */
+    function test_UpdateProduct_Success_UpdateAllFields() public {
+        vm.startPrank(owner);
+
+        // First create a product
+        uint256 productId = store.addProduct(
+            "Original Product",
+            "Original Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Update all fields
+        string memory newName = "Updated Product";
+        string memory newDescription = "Updated Description";
+        uint256 newPrice = 200 ether;
+        address newToken = address(paymentToken);
+        bool newIsActive = false;
+
+        store.updateProduct(
+            productId,
+            newName,
+            newDescription,
+            newPrice,
+            newToken,
+            newIsActive
+        );
+
+        // Verify all fields were updated - check in separate calls to avoid stack too deep
+        (, string memory name,,,,,,,) = _getProduct(productId);
+        assertEq(name, newName, "Name should be updated");
+        
+        (,, string memory description,,,,,,) = _getProduct(productId);
+        assertEq(description, newDescription, "Description should be updated");
+        
+        (,,, uint256 price,,,,,) = _getProduct(productId);
+        assertEq(price, newPrice, "Price should be updated");
+        
+        (,,,, address token,,,,) = _getProduct(productId);
+        assertEq(token, newToken, "Payment token should be updated");
+        
+        (,,,,,,, uint256 inventory, bool active) = _getProduct(productId);
+        assertEq(active, newIsActive, "isActive should be updated");
+        assertEq(inventory, 50, "Inventory should not change");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test updating product name
+     */
+    function test_UpdateProduct_Success_UpdateName() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Original Name",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        store.updateProduct(
+            productId,
+            "New Name",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            true
+        );
+
+        (, string memory name,,,,,,,) = _getProduct(productId);
+        assertEq(name, "New Name", "Name should be updated");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test updating product description
+     */
+    function test_UpdateProduct_Success_UpdateDescription() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Original Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        string memory newDescription = "This is a new detailed description with special chars: !@#$%^&*()";
+
+        store.updateProduct(
+            productId,
+            "Product",
+            newDescription,
+            100 ether,
+            address(paymentToken),
+            true
+        );
+
+        (,, string memory description,,,,,,) = _getProduct(productId);
+        assertEq(description, newDescription, "Description should be updated");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test updating product price
+     */
+    function test_UpdateProduct_Success_UpdatePrice() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        uint256 newPrice = 250 ether;
+
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            newPrice,
+            address(paymentToken),
+            true
+        );
+
+        (,,, uint256 price,,,,,) = _getProduct(productId);
+        assertEq(price, newPrice, "Price should be updated");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test updating payment token
+     */
+    function test_UpdateProduct_Success_UpdatePaymentToken() public {
+        vm.startPrank(owner);
+
+        // Create and add a second supported token
+        ERC20Mock newToken = new ERC20Mock();
+        factory.addSupportedToken(address(newToken));
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            100 ether,
+            address(newToken),
+            true
+        );
+
+        (,,,, address token,,,,) = _getProduct(productId);
+        assertEq(token, address(newToken), "Payment token should be updated");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test updating isActive status
+     */
+    function test_UpdateProduct_Success_UpdateIsActive() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Deactivate product
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false
+        );
+
+        (,,,,,,, uint256 inv, bool active) = _getProduct(productId);
+        assertEq(active, false, "Product should be inactive");
+
+        // Reactivate product
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            true
+        );
+
+        (,,,,,,, inv, active) = _getProduct(productId);
+        assertEq(active, true, "Product should be active");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that ProductUpdated event is emitted
+     */
+    function test_UpdateProduct_EmitsProductUpdatedEvent() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        string memory newName = "Updated Product";
+        uint256 newPrice = 200 ether;
+        bool newIsActive = false;
+
+        vm.expectEmit(true, false, false, true);
+        emit ProductUpdated(productId, newName, newPrice, newIsActive);
+
+        store.updateProduct(
+            productId,
+            newName,
+            "Description",
+            newPrice,
+            address(paymentToken),
+            newIsActive
+        );
+
+        vm.stopPrank();
+    }
+
+    // ============ updateProduct() REVERT CASES ============
+
+    /**
+     * @dev Test revert when product ID is invalid (zero)
+     */
+    function test_UpdateProduct_Revert_InvalidProductId_Zero() public {
+        vm.startPrank(owner);
+
+        vm.expectRevert("Invalid product ID");
+        store.updateProduct(
+            0, // Invalid product ID
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            true
+        );
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test revert when product ID is invalid (too high)
+     */
+    function test_UpdateProduct_Revert_InvalidProductId_TooHigh() public {
+        vm.startPrank(owner);
+
+        // Create one product
+        store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Try to update non-existent product
+        vm.expectRevert("Invalid product ID");
+        store.updateProduct(
+            999, // Non-existent product ID
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            true
+        );
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test revert when price is zero
+     */
+    function test_UpdateProduct_Revert_ZeroPrice() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        vm.expectRevert("Price must be greater than zero");
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            0, // Zero price
+            address(paymentToken),
+            true
+        );
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test revert when payment token is not supported
+     */
+    function test_UpdateProduct_Revert_UnsupportedPaymentToken() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Create unsupported token
+        ERC20Mock unsupportedToken = new ERC20Mock();
+
+        vm.expectRevert("Payment token not supported");
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            100 ether,
+            address(unsupportedToken), // Unsupported token
+            true
+        );
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test revert when caller is not the owner
+     */
+    function test_UpdateProduct_Revert_NotOwner() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        vm.stopPrank();
+
+        // Try to update as non-owner
+        vm.prank(buyer);
+        vm.expectRevert("Only store owner can call this function");
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            true
+        );
+    }
+
+    /**
+     * @dev Test revert when store is inactive
+     */
+    function test_UpdateProduct_Revert_StoreNotActive() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Deactivate store
+        store.setStoreActive(false);
+
+        vm.expectRevert("Store is not active");
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            true
+        );
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test that product can be updated after reactivating store
+     */
+    function test_UpdateProduct_Success_AfterReactivatingStore() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        // Deactivate store
+        store.setStoreActive(false);
+
+        // Try to update (should fail)
+        vm.expectRevert("Store is not active");
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            true
+        );
+
+        // Reactivate store
+        store.setStoreActive(true);
+
+        // Now should succeed
+        store.updateProduct(
+            productId,
+            "Updated Product",
+            "Updated Description",
+            200 ether,
+            address(paymentToken),
+            false
+        );
+
+        (, string memory name,, uint256 price, address _token, bool _digital, bool _unlimited, uint256 _inv, bool active) = _getProduct(productId);
+        assertEq(name, "Updated Product", "Product should be updated");
+        assertEq(price, 200 ether, "Price should be updated");
+        assertEq(active, false, "Product should be inactive");
+
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test revert when payment token address is zero
+     */
+    function test_UpdateProduct_Revert_ZeroPaymentToken() public {
+        vm.startPrank(owner);
+
+        uint256 productId = store.addProduct(
+            "Product",
+            "Description",
+            100 ether,
+            address(paymentToken),
+            false,
+            false,
+            50
+        );
+
+        vm.expectRevert("Payment token not supported");
+        store.updateProduct(
+            productId,
+            "Product",
+            "Description",
+            100 ether,
+            address(0), // Zero address
+            true
+        );
+
+        vm.stopPrank();
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
