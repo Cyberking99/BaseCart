@@ -44,6 +44,7 @@ A decentralized e-commerce platform built on the Base blockchain with secure esc
 - npm or yarn
 - Git
 - A Web3 wallet (MetaMask, Trust Wallet, etc.)
+- **Foundry** (for smart contract testing) - See [Testing](#-testing) section for installation
 
 ### Installation
 
@@ -91,27 +92,35 @@ A decentralized e-commerce platform built on the Base blockchain with secure esc
 
 ```
 basecart/
-├── app/                    # Next.js App Router
-│   ├── admin/             # Admin panel for product management
-│   ├── dashboard/         # User dashboard for orders
-│   ├── products/          # Product catalog
-│   ├── globals.css        # Global styles
-│   ├── layout.tsx         # Root layout
-│   └── page.tsx           # Home page
-├── components/            # Reusable React components
-│   ├── ui/               # Base UI components (Radix UI)
-│   ├── connect-wallet.tsx # Wallet connection component
-│   ├── product-card.tsx   # Product display component
-│   └── ...
-├── hooks/                # Custom React hooks
-│   ├── use-wallet.tsx    # Wallet management hook
-│   └── use-toast.ts      # Toast notification hook
-├── lib/                  # Utility libraries
-│   ├── contract.ts       # Smart contract interactions
-│   └── utils.ts          # General utilities
-├── public/               # Static assets
-├── styles/               # Additional stylesheets
-└── types.d.ts           # TypeScript type definitions
+├── contracts/            # Smart contracts (Foundry project)
+│   ├── src/             # Solidity source files
+│   │   ├── BaseCartFactory.sol
+│   │   └── BaseCartStore.sol
+│   ├── test/            # Test files
+│   │   └── BaseCartStore.t.sol
+│   ├── script/          # Deployment scripts
+│   ├── lib/             # Dependencies (forge-std, openzeppelin-contracts)
+│   └── foundry.toml     # Foundry configuration
+├── frontend/             # Next.js frontend application
+│   ├── app/             # Next.js App Router
+│   │   ├── admin/       # Admin panel for product management
+│   │   ├── dashboard/   # User dashboard for orders
+│   │   ├── products/    # Product catalog
+│   │   ├── globals.css  # Global styles
+│   │   ├── layout.tsx   # Root layout
+│   │   └── page.tsx     # Home page
+│   ├── components/      # Reusable React components
+│   │   ├── ui/         # Base UI components (Radix UI)
+│   │   ├── connect-wallet.tsx
+│   │   └── product-card.tsx
+│   ├── hooks/          # Custom React hooks
+│   │   ├── use-wallet.tsx
+│   │   └── use-toast.ts
+│   ├── lib/            # Utility libraries
+│   │   ├── contract.ts # Smart contract interactions
+│   │   └── utils.ts
+│   └── public/         # Static assets
+└── README.md           # This file
 ```
 
 ## 🔧 Configuration
@@ -187,6 +196,145 @@ The BaseCart smart contract includes:
 - `purchase(productId, quantity)` - Make a purchase
 - `confirmDelivery(escrowIndex)` - Confirm item delivery
 - `refund(escrowIndex)` - Request a refund
+
+## 🧪 Testing
+
+The project includes comprehensive test coverage for all smart contract functions using Foundry.
+
+### Prerequisites for Testing
+
+1. **Install Foundry**
+   ```bash
+   curl -L https://foundry.paradigm.xyz | bash
+   foundryup
+   ```
+   
+   For more details, visit the [Foundry Installation Guide](https://book.getfoundry.sh/getting-started/installation).
+
+2. **Verify Installation**
+   ```bash
+   forge --version
+   ```
+
+### Setting Up Tests
+
+1. **Navigate to the contracts directory**
+   ```bash
+   cd contracts
+   ```
+
+2. **Install dependencies**
+   ```bash
+   forge install foundry-rs/forge-std openzeppelin/openzeppelin-contracts
+   ```
+   
+   This installs:
+   - `forge-std` - Foundry's standard testing library
+   - `openzeppelin-contracts` - OpenZeppelin contracts for testing
+
+### Running Tests
+
+1. **Run all tests**
+   ```bash
+   forge test
+   ```
+   
+   This will run all test files in the `test/` directory.
+
+2. **Run tests for a specific file**
+   ```bash
+   forge test --match-path test/BaseCartStore.t.sol
+   ```
+
+3. **Run tests matching a pattern**
+   ```bash
+   # Run all tests for addProduct function
+   forge test --match-test test_AddProduct
+   
+   # Run all tests for createOrder function
+   forge test --match-test test_CreateOrder
+   
+   # Run all tests for updateInventory function
+   forge test --match-test test_UpdateInventory
+   ```
+
+4. **Run with verbose output**
+   ```bash
+   # Level 1: Print logs for failing tests
+   forge test -v
+   
+   # Level 2: Print logs for all tests
+   forge test -vv
+   
+   # Level 3: Print execution traces
+   forge test -vvv
+   
+   # Level 4: Print execution traces and setup traces
+   forge test -vvvv
+   
+   # Level 5: Print execution traces, setup traces, and stack traces
+   forge test -vvvvv
+   ```
+
+5. **Run tests with gas reporting**
+   ```bash
+   forge test --gas-report
+   ```
+
+### Test Coverage
+
+The test suite includes comprehensive coverage for:
+
+#### Product Management Functions
+- ✅ `addProduct` - 15 tests covering success cases, validation, and edge cases
+- ✅ `updateProduct` - 12 tests covering field updates, validation, and access control
+- ✅ `updateInventory` - 12 tests covering inventory management and restrictions
+
+#### Order Management Functions
+- ✅ `createOrder` - 18 tests covering order creation, inventory reduction, escrow handling, and validation
+
+**Total: 59 tests** covering all core marketplace functions.
+
+### Test Structure
+
+Tests are organized in `contracts/test/BaseCartStore.t.sol` with the following structure:
+
+```
+BaseCartStoreTest
+├── setUp()                    # Test setup and initialization
+├── addProduct() Tests         # Product creation tests
+│   ├── Success Cases
+│   └── Revert Cases
+├── updateProduct() Tests     # Product update tests
+│   ├── Success Cases
+│   └── Revert Cases
+├── updateInventory() Tests    # Inventory management tests
+│   ├── Success Cases
+│   └── Revert Cases
+├── createOrder() Tests       # Order creation tests
+│   ├── Success Cases
+│   └── Revert Cases
+└── Helper Functions          # Utility functions for tests
+```
+
+### Example Test Output
+
+```
+[PASS] test_AddProduct_Success_WithValidInputs() (gas: 216818)
+[PASS] test_CreateOrder_Success_PhysicalProduct() (gas: 413247)
+[PASS] test_UpdateInventory_Success_PhysicalProduct() (gas: 217391)
+Suite result: ok. 59 passed; 0 failed; 0 skipped
+```
+
+### Additional Testing Commands
+
+- **Format code**: `forge fmt`
+- **Build contracts**: `forge build`
+- **Generate gas snapshots**: `forge snapshot`
+- **Run specific test with detailed output**:
+  ```bash
+  forge test --match-test test_CreateOrder_Success_PhysicalProduct -vvv
+  ```
 
 ## 🤝 Contributing
 
