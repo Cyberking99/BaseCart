@@ -12,3 +12,14 @@ docs/
 
 # Dotenv file
 .env
+.env.local
+
+# Gas reports
+.gas-snapshots/
+
+# Coverage reports
+coverage/
+coverage.json
+
+# Test artifacts
+test-failures/
