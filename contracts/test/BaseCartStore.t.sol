@@ -27,6 +27,7 @@ contract BaseCartStoreTest is Test {
     event ProductUpdated(uint256 indexed productId, string name, uint256 price, bool isActive);
     event InventoryUpdated(uint256 indexed productId, uint256 newInventory);
     event OrderCreated(uint256 indexed orderId, address indexed buyer, uint256 productId, uint256 totalPrice);
+    event OrderStatusUpdated(uint256 indexed orderId, BaseCartStore.OrderStatus status);
 
     function setUp() public {
         // Setup accounts
@@ -1875,6 +1876,140 @@ contract BaseCartStoreTest is Test {
         assertEq(orderId, 1, "Order should be created with large quantity");
 
         vm.stopPrank();
+    }
+
+    // ============ processPayment() TESTS ============
+
+    /**
+     * @dev Test successful payment processing for physical product with escrow
+     */
+    function test_ProcessPayment_Success_PhysicalProductWithEscrow() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 2, true);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+
+        address feeCollector = factory.feeCollector();
+        uint256 totalPrice = 200 ether;
+        uint256 platformFee = (totalPrice * 250) / 10000;
+        uint256 sellerAmount = totalPrice - platformFee;
+
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        (,,,,,, BaseCartStore.OrderStatus status,,) = _getOrder(orderId);
+        assertEq(uint256(status), uint256(BaseCartStore.OrderStatus.InEscrow), "Should be in escrow");
+        assertEq(paymentToken.balanceOf(address(store)), sellerAmount, "Store should hold seller amount");
+        assertEq(paymentToken.balanceOf(feeCollector), platformFee, "Fee collector should receive fee");
+    }
+
+    /**
+     * @dev Test successful payment processing for digital product (completed immediately)
+     */
+    function test_ProcessPayment_Success_DigitalProduct() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Digital", "Desc", 50 ether, address(paymentToken), true, false, 10);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 3, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        (,,,,,, BaseCartStore.OrderStatus status,,) = _getOrder(orderId);
+        assertEq(uint256(status), uint256(BaseCartStore.OrderStatus.Completed), "Digital should be completed");
+    }
+
+    // ============ processPayment() REVERT CASES ============
+
+    function test_ProcessPayment_Revert_InvalidOrderId() public {
+        vm.prank(buyer);
+        vm.expectRevert("Invalid order ID");
+        store.processPayment(0);
+    }
+
+    function test_ProcessPayment_Revert_NotOrderBuyer() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 10);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(otherUser, 1000 ether);
+        vm.prank(otherUser);
+        paymentToken.approve(address(store), 1000 ether);
+
+        vm.prank(otherUser);
+        vm.expectRevert("Not the order buyer");
+        store.processPayment(orderId);
+    }
+
+    function test_ProcessPayment_Revert_OrderNotPending() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 10);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        vm.prank(buyer);
+        vm.expectRevert("Order not in pending status");
+        store.processPayment(orderId);
+    }
+
+    function test_ProcessPayment_Revert_InsufficientBalance() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 10);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 50 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+
+        vm.prank(buyer);
+        vm.expectRevert();
+        store.processPayment(orderId);
+    }
+
+    function test_ProcessPayment_Revert_StoreNotActive() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 10);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+
+        vm.prank(owner);
+        store.setStoreActive(false);
+
+        vm.prank(buyer);
+        vm.expectRevert("Store is not active");
+        store.processPayment(orderId);
     }
 
     // ============ HELPER FUNCTIONS ============
