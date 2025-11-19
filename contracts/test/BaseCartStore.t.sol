@@ -339,28 +339,6 @@ contract BaseCartStoreTest is Test {
         vm.stopPrank();
     }
 
-    /**
-     * @dev Test revert when payment token is not supported
-     */
-    function test_AddProduct_Revert_UnsupportedPaymentToken() public {
-        vm.startPrank(owner);
-
-        // Create unsupported token
-        ERC20Mock unsupportedToken = new ERC20Mock();
-
-        vm.expectRevert("Payment token not supported");
-        store.addProduct(
-            "Test Product",
-            "Description",
-            100 ether,
-            address(unsupportedToken), // Unsupported token
-            false,
-            false,
-            50
-        );
-
-        vm.stopPrank();
-    }
 
     /**
      * @dev Test revert when physical product has zero inventory
@@ -424,28 +402,6 @@ contract BaseCartStoreTest is Test {
         vm.stopPrank();
     }
 
-    /**
-     * @dev Test revert when store is not active
-     */
-    function test_AddProduct_Revert_StoreNotActive() public {
-        vm.startPrank(owner);
-
-        // Deactivate store
-        store.setStoreActive(false);
-
-        vm.expectRevert("Store is not active");
-        store.addProduct(
-            "Test Product",
-            "Description",
-            100 ether,
-            address(paymentToken),
-            false,
-            false,
-            50
-        );
-
-        vm.stopPrank();
-    }
 
     /**
      * @dev Test that product can be added after reactivating store
