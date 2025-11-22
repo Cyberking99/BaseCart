@@ -308,6 +308,107 @@ contract BaseCartStoreTest is Test {
         store.markOrderShipped(orderId);
     }
 
+    /**
+     * @dev Test revert when order status is Refunded
+     * Note: For escrow orders, platform fee is transferred immediately, so we need to
+     * add funds to store to cover the full refund amount
+     */
+    function test_MarkOrderShipped_Revert_OrderRefunded() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        // Create escrow order
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, true);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Verify order is in InEscrow status (needed for refund)
+        (,,,,,, BaseCartStore.OrderStatus statusBeforeRefund,,) = _getOrder(orderId);
+        assertEq(uint256(statusBeforeRefund), uint256(BaseCartStore.OrderStatus.InEscrow), "Order should be InEscrow");
+
+        // Calculate platform fee that was transferred
+        uint256 platformFee = factory.calculatePlatformFee(100 ether);
+        
+        // Add platform fee back to store so it can refund the full amount
+        paymentToken.mint(address(store), platformFee);
+
+        // Refund the order
+        vm.prank(owner);
+        store.refundOrder(orderId);
+
+        // Verify order is refunded
+        (,,,,,, BaseCartStore.OrderStatus statusAfterRefund,,) = _getOrder(orderId);
+        assertEq(uint256(statusAfterRefund), uint256(BaseCartStore.OrderStatus.Refunded), "Order should be Refunded");
+
+        // Try to mark refunded order as shipped
+        vm.prank(owner);
+        vm.expectRevert("Invalid order status");
+        store.markOrderShipped(orderId);
+    }
+
+    /**
+     * @dev Test revert when product is digital
+     * Note: Digital products are auto-completed on payment, so status check happens first
+     */
+    function test_MarkOrderShipped_Revert_DigitalProduct() public {
+        vm.startPrank(owner);
+        // Create a digital product
+        uint256 productId = store.addProduct(
+            "Digital Product",
+            "Description",
+            50 ether,
+            address(paymentToken),
+            true,  // isDigital
+            false,
+            10
+        );
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Digital products are auto-completed, so status check happens before digital check
+        // Try to mark digital product order as shipped
+        vm.prank(owner);
+        vm.expectRevert("Invalid order status");
+        store.markOrderShipped(orderId);
+    }
+
+    /**
+     * @dev Test revert when caller is not the owner
+     */
+    function test_MarkOrderShipped_Revert_NotOwner() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Try to mark as shipped as non-owner
+        vm.prank(buyer);
+        vm.expectRevert("Only store owner can call this function");
+        store.markOrderShipped(orderId);
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
