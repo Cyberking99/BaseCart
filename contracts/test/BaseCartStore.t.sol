@@ -409,6 +409,110 @@ contract BaseCartStoreTest is Test {
         store.markOrderShipped(orderId);
     }
 
+    /**
+     * @dev Test revert when store is not active
+     */
+    function test_MarkOrderShipped_Revert_StoreNotActive() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Deactivate store
+        vm.prank(owner);
+        store.setStoreActive(false);
+
+        // Try to mark as shipped when store is inactive
+        vm.prank(owner);
+        vm.expectRevert("Store is not active");
+        store.markOrderShipped(orderId);
+    }
+
+    // ============ markOrderShipped() EDGE CASES ============
+
+    /**
+     * @dev Test that order can be marked as shipped after store reactivation
+     */
+    function test_MarkOrderShipped_Success_AfterReactivatingStore() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Deactivate store
+        vm.prank(owner);
+        store.setStoreActive(false);
+
+        // Try to mark as shipped (should fail)
+        vm.prank(owner);
+        vm.expectRevert("Store is not active");
+        store.markOrderShipped(orderId);
+
+        // Reactivate store
+        vm.prank(owner);
+        store.setStoreActive(true);
+
+        // Now should succeed
+        vm.prank(owner);
+        store.markOrderShipped(orderId);
+
+        // Verify order is shipped
+        (,,,,,, BaseCartStore.OrderStatus status,,) = _getOrder(orderId);
+        assertEq(uint256(status), uint256(BaseCartStore.OrderStatus.Shipped), "Order should be Shipped");
+    }
+
+    /**
+     * @dev Test that digital product orders cannot be marked as shipped
+     */
+    function test_MarkOrderShipped_Revert_CannotShipDigitalProducts() public {
+        vm.startPrank(owner);
+        // Create digital product with unlimited inventory
+        uint256 productId = store.addProduct(
+            "Digital Product",
+            "Description",
+            50 ether,
+            address(paymentToken),
+            true,  // isDigital
+            true,  // isUnlimited
+            0
+        );
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Verify order is completed (digital products are auto-completed)
+        (,,,,,, BaseCartStore.OrderStatus status,,) = _getOrder(orderId);
+        assertEq(uint256(status), uint256(BaseCartStore.OrderStatus.Completed), "Digital order should be Completed");
+
+        // Try to mark as shipped (should fail even if status allowed it)
+        vm.prank(owner);
+        vm.expectRevert("Invalid order status");
+        store.markOrderShipped(orderId);
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
