@@ -162,6 +162,88 @@ contract BaseCartStoreTest is Test {
         store.markOrderShipped(orderId);
     }
 
+    /**
+     * @dev Test that multiple orders can be marked as shipped
+     */
+    function test_MarkOrderShipped_Success_MultipleOrders() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 100);
+        vm.stopPrank();
+
+        // Create and pay for multiple orders
+        paymentToken.mint(buyer, 5000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 5000 ether);
+
+        uint256 orderId1;
+        uint256 orderId2;
+        uint256 orderId3;
+
+        vm.prank(buyer);
+        orderId1 = store.createOrder(productId, 1, false);
+        vm.prank(buyer);
+        store.processPayment(orderId1);
+
+        vm.prank(buyer);
+        orderId2 = store.createOrder(productId, 2, false);
+        vm.prank(buyer);
+        store.processPayment(orderId2);
+
+        vm.prank(buyer);
+        orderId3 = store.createOrder(productId, 3, true); // Escrow order
+        vm.prank(buyer);
+        store.processPayment(orderId3);
+
+        // Mark all as shipped
+        vm.startPrank(owner);
+        store.markOrderShipped(orderId1);
+        store.markOrderShipped(orderId2);
+        store.markOrderShipped(orderId3);
+        vm.stopPrank();
+
+        // Verify all orders are shipped
+        (,,,,,, BaseCartStore.OrderStatus status1,,) = _getOrder(orderId1);
+        (,,,,,, BaseCartStore.OrderStatus status2,,) = _getOrder(orderId2);
+        (,,,,,, BaseCartStore.OrderStatus status3,,) = _getOrder(orderId3);
+
+        assertEq(uint256(status1), uint256(BaseCartStore.OrderStatus.Shipped), "Order 1 should be Shipped");
+        assertEq(uint256(status2), uint256(BaseCartStore.OrderStatus.Shipped), "Order 2 should be Shipped");
+        assertEq(uint256(status3), uint256(BaseCartStore.OrderStatus.Shipped), "Order 3 should be Shipped");
+    }
+
+    // ============ markOrderShipped() REVERT CASES ============
+
+    /**
+     * @dev Test revert when order ID is invalid (zero)
+     */
+    function test_MarkOrderShipped_Revert_InvalidOrderId_Zero() public {
+        vm.prank(owner);
+        vm.expectRevert("Invalid order ID");
+        store.markOrderShipped(0);
+    }
+
+    /**
+     * @dev Test revert when order ID is invalid (too high)
+     */
+    function test_MarkOrderShipped_Revert_InvalidOrderId_TooHigh() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        vm.prank(owner);
+        vm.expectRevert("Invalid order ID");
+        store.markOrderShipped(999); // Non-existent order ID
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
