@@ -244,6 +244,70 @@ contract BaseCartStoreTest is Test {
         store.markOrderShipped(999); // Non-existent order ID
     }
 
+    /**
+     * @dev Test revert when order status is not Paid or InEscrow (Pending)
+     */
+    function test_MarkOrderShipped_Revert_OrderStatusPending() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        // Order is still Pending, not paid
+        vm.prank(owner);
+        vm.expectRevert("Invalid order status");
+        store.markOrderShipped(orderId);
+    }
+
+    /**
+     * @dev Test revert when order status is already Shipped
+     */
+    function test_MarkOrderShipped_Revert_OrderAlreadyShipped() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        vm.prank(owner);
+        store.markOrderShipped(orderId);
+
+        // Try to mark as shipped again
+        vm.prank(owner);
+        vm.expectRevert("Invalid order status");
+        store.markOrderShipped(orderId);
+    }
+
+    /**
+     * @dev Test revert when order status is Cancelled
+     */
+    function test_MarkOrderShipped_Revert_OrderCancelled() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        // Cancel the order
+        vm.prank(buyer);
+        store.cancelOrder(orderId);
+
+        // Try to mark cancelled order as shipped
+        vm.prank(owner);
+        vm.expectRevert("Invalid order status");
+        store.markOrderShipped(orderId);
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
