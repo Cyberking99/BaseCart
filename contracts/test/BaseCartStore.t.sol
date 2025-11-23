@@ -660,6 +660,35 @@ contract BaseCartStoreTest is Test {
         store.addRevenueSplit(productId, address(0x100), 10000);
     }
 
+    /**
+     * @dev Test revert when total percentage exceeds 100%
+     */
+    function test_AddRevenueSplit_Revert_TotalPercentageExceeds100() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        
+        store.addRevenueSplit(productId, address(0x100), 6000); // 60%
+        store.addRevenueSplit(productId, address(0x200), 3000); // 30% - total 90%
+        
+        // Try to add another 20% which would exceed 100%
+        vm.expectRevert("Total percentage exceeds 100%");
+        store.addRevenueSplit(productId, address(0x300), 2000); // 20%
+        vm.stopPrank();
+    }
+
+    /**
+     * @dev Test revert when caller is not the owner
+     */
+    function test_AddRevenueSplit_Revert_NotOwner() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+        
+        vm.prank(buyer);
+        vm.expectRevert("Only store owner can call this function");
+        store.addRevenueSplit(productId, address(0x100), 1000);
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
