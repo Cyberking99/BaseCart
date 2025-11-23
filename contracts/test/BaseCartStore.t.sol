@@ -565,6 +565,38 @@ contract BaseCartStoreTest is Test {
         assertEq(splits[2].recipient, recipient3, "Recipient 3 should match");
     }
 
+    /**
+     * @dev Test adding revenue split that totals exactly 100%
+     */
+    function test_AddRevenueSplit_Success_Total100Percent() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        
+        store.addRevenueSplit(productId, address(0x100), 5000); // 50%
+        store.addRevenueSplit(productId, address(0x200), 5000); // 50% - totals 100%
+        vm.stopPrank();
+        
+        BaseCartStore.RevenueSplit[] memory splits = store.getProductRevenueSplits(productId);
+        assertEq(splits.length, 2, "Should have 2 splits");
+    }
+
+    /**
+     * @dev Test that RevenueSplitAdded event is emitted
+     */
+    function test_AddRevenueSplit_EmitsEvent() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        
+        address recipient = address(0x100);
+        uint256 percentage = 2500; // 25%
+        
+        vm.expectEmit(true, false, false, true);
+        emit RevenueSplitAdded(productId, recipient, percentage);
+        
+        store.addRevenueSplit(productId, recipient, percentage);
+        vm.stopPrank();
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
