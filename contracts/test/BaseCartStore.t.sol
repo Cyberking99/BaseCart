@@ -597,6 +597,43 @@ contract BaseCartStoreTest is Test {
         vm.stopPrank();
     }
 
+    // ============ addRevenueSplit() REVERT CASES ============
+
+    /**
+     * @dev Test revert when product ID is zero
+     */
+    function test_AddRevenueSplit_Revert_InvalidProductId_Zero() public {
+        vm.prank(owner);
+        vm.expectRevert("Invalid product ID");
+        store.addRevenueSplit(0, address(0x100), 1000);
+    }
+
+    /**
+     * @dev Test revert when product ID is too high
+     */
+    function test_AddRevenueSplit_Revert_InvalidProductId_TooHigh() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+        
+        vm.prank(owner);
+        vm.expectRevert("Invalid product ID");
+        store.addRevenueSplit(productId + 1, address(0x100), 1000);
+    }
+
+    /**
+     * @dev Test revert when recipient is zero address
+     */
+    function test_AddRevenueSplit_Revert_InvalidRecipient() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+        
+        vm.prank(owner);
+        vm.expectRevert("Invalid recipient address");
+        store.addRevenueSplit(productId, address(0), 1000);
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
