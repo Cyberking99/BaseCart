@@ -634,6 +634,32 @@ contract BaseCartStoreTest is Test {
         store.addRevenueSplit(productId, address(0), 1000);
     }
 
+    /**
+     * @dev Test revert when percentage is zero
+     */
+    function test_AddRevenueSplit_Revert_InvalidPercentage_Zero() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+        
+        vm.prank(owner);
+        vm.expectRevert("Invalid percentage");
+        store.addRevenueSplit(productId, address(0x100), 0);
+    }
+
+    /**
+     * @dev Test revert when percentage is >= 10000 (100%)
+     */
+    function test_AddRevenueSplit_Revert_InvalidPercentage_TooHigh() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+        
+        vm.prank(owner);
+        vm.expectRevert("Invalid percentage");
+        store.addRevenueSplit(productId, address(0x100), 10000);
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
