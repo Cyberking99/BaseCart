@@ -24,6 +24,9 @@ contract BaseCartStoreTest is Test {
     string public constant STORE_DESCRIPTION = "A test store";
 
     event OrderStatusUpdated(uint256 indexed orderId, BaseCartStore.OrderStatus status);
+    event RevenueSplitAdded(uint256 indexed productId, address recipient, uint256 percentage);
+    event RevenueSplitRemoved(uint256 indexed productId, address recipient);
+    event FundsWithdrawn(address indexed recipient, address token, uint256 amount);
 
     function setUp() public {
         // Setup accounts
@@ -55,7 +58,7 @@ contract BaseCartStoreTest is Test {
      */
     function test_MarkOrderShipped_Success_FromPaidStatus() public {
         vm.startPrank(owner);
-        
+
         // Create a physical product
         uint256 productId = store.addProduct(
             "Physical Product",
@@ -99,7 +102,7 @@ contract BaseCartStoreTest is Test {
      */
     function test_MarkOrderShipped_Success_FromInEscrowStatus() public {
         vm.startPrank(owner);
-        
+
         // Create a physical product
         uint256 productId = store.addProduct(
             "Physical Product",
@@ -511,6 +514,55 @@ contract BaseCartStoreTest is Test {
         vm.prank(owner);
         vm.expectRevert("Invalid order status");
         store.markOrderShipped(orderId);
+    }
+
+    // ============ addRevenueSplit() TESTS ============
+
+    /**
+     * @dev Test successful addition of revenue split
+     */
+    function test_AddRevenueSplit_Success() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        
+        address recipient = address(0x100);
+        uint256 percentage = 1000; // 10%
+        
+        vm.expectEmit(true, false, false, true);
+        emit RevenueSplitAdded(productId, recipient, percentage);
+        
+        store.addRevenueSplit(productId, recipient, percentage);
+        vm.stopPrank();
+        
+        // Verify split was added
+        BaseCartStore.RevenueSplit[] memory splits = store.getProductRevenueSplits(productId);
+        assertEq(splits.length, 1, "Should have 1 split");
+        assertEq(splits[0].recipient, recipient, "Recipient should match");
+        assertEq(splits[0].percentage, percentage, "Percentage should match");
+    }
+
+    /**
+     * @dev Test adding multiple revenue splits
+     */
+    function test_AddRevenueSplit_Success_MultipleSplits() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        
+        address recipient1 = address(0x100);
+        address recipient2 = address(0x200);
+        address recipient3 = address(0x300);
+        
+        store.addRevenueSplit(productId, recipient1, 2000); // 20%
+        store.addRevenueSplit(productId, recipient2, 3000); // 30%
+        store.addRevenueSplit(productId, recipient3, 1500); // 15%
+        vm.stopPrank();
+        
+        // Verify all splits were added
+        BaseCartStore.RevenueSplit[] memory splits = store.getProductRevenueSplits(productId);
+        assertEq(splits.length, 3, "Should have 3 splits");
+        assertEq(splits[0].recipient, recipient1, "Recipient 1 should match");
+        assertEq(splits[1].recipient, recipient2, "Recipient 2 should match");
+        assertEq(splits[2].recipient, recipient3, "Recipient 3 should match");
     }
 
     // ============ HELPER FUNCTIONS ============
