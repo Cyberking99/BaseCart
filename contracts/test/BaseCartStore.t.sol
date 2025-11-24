@@ -790,6 +790,44 @@ contract BaseCartStoreTest is Test {
         vm.stopPrank();
     }
 
+    // ============ removeRevenueSplit() REVERT CASES ============
+
+    /**
+     * @dev Test revert when product ID is zero
+     */
+    function test_RemoveRevenueSplit_Revert_InvalidProductId_Zero() public {
+        vm.prank(owner);
+        vm.expectRevert("Invalid product ID");
+        store.removeRevenueSplit(0, 0);
+    }
+
+    /**
+     * @dev Test revert when product ID is too high
+     */
+    function test_RemoveRevenueSplit_Revert_InvalidProductId_TooHigh() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+        
+        vm.prank(owner);
+        vm.expectRevert("Invalid product ID");
+        store.removeRevenueSplit(productId + 1, 0);
+    }
+
+    /**
+     * @dev Test revert when split index is invalid
+     */
+    function test_RemoveRevenueSplit_Revert_InvalidIndex() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        store.addRevenueSplit(productId, address(0x100), 1000);
+        vm.stopPrank();
+        
+        vm.prank(owner);
+        vm.expectRevert("Invalid split index");
+        store.removeRevenueSplit(productId, 1); // Index 1 doesn't exist (only 0)
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
