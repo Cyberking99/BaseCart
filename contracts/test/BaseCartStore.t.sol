@@ -855,6 +855,45 @@ contract BaseCartStoreTest is Test {
         store.removeRevenueSplit(productId, 0);
     }
 
+    /**
+     * @dev Test revert when store is not active
+     */
+    function test_RemoveRevenueSplit_Revert_StoreNotActive() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        store.addRevenueSplit(productId, address(0x100), 1000);
+        store.setStoreActive(false);
+        vm.stopPrank();
+        
+        vm.prank(owner);
+        vm.expectRevert("Store is not active");
+        store.removeRevenueSplit(productId, 0);
+    }
+
+    // ============ withdrawFunds() TESTS ============
+
+    /**
+     * @dev Test successful withdrawal of funds
+     */
+    function test_WithdrawFunds_Success() public {
+        // Send tokens directly to store
+        paymentToken.mint(address(store), 500 ether);
+        
+        uint256 ownerBalanceBefore = paymentToken.balanceOf(owner);
+        
+        vm.expectEmit(true, false, false, true);
+        emit FundsWithdrawn(owner, address(paymentToken), 500 ether);
+        
+        vm.prank(owner);
+        store.withdrawFunds(address(paymentToken));
+        
+        uint256 ownerBalanceAfter = paymentToken.balanceOf(owner);
+        uint256 storeBalanceAfter = paymentToken.balanceOf(address(store));
+        
+        assertEq(storeBalanceAfter, 0, "Store balance should be zero");
+        assertEq(ownerBalanceAfter, ownerBalanceBefore + 500 ether, "Owner should receive funds");
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
