@@ -828,6 +828,33 @@ contract BaseCartStoreTest is Test {
         store.removeRevenueSplit(productId, 1); // Index 1 doesn't exist (only 0)
     }
 
+    /**
+     * @dev Test revert when trying to remove from empty array
+     */
+    function test_RemoveRevenueSplit_Revert_EmptyArray() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+        
+        vm.prank(owner);
+        vm.expectRevert("Invalid split index");
+        store.removeRevenueSplit(productId, 0);
+    }
+
+    /**
+     * @dev Test revert when caller is not the owner
+     */
+    function test_RemoveRevenueSplit_Revert_NotOwner() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        store.addRevenueSplit(productId, address(0x100), 1000);
+        vm.stopPrank();
+        
+        vm.prank(buyer);
+        vm.expectRevert("Only store owner can call this function");
+        store.removeRevenueSplit(productId, 0);
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
