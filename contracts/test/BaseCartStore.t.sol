@@ -969,6 +969,37 @@ contract BaseCartStoreTest is Test {
         store.withdrawFunds(address(paymentToken));
     }
 
+    // ============ withdrawFunds() REVERT CASES ============
+
+    /**
+     * @dev Test revert when token address is zero
+     */
+    function test_WithdrawFunds_Revert_InvalidTokenAddress() public {
+        vm.prank(owner);
+        vm.expectRevert("Invalid token address");
+        store.withdrawFunds(address(0));
+    }
+
+    /**
+     * @dev Test revert when no funds to withdraw
+     */
+    function test_WithdrawFunds_Revert_NoFunds() public {
+        vm.prank(owner);
+        vm.expectRevert("No funds to withdraw");
+        store.withdrawFunds(address(paymentToken));
+    }
+
+    /**
+     * @dev Test revert when caller is not the owner
+     */
+    function test_WithdrawFunds_Revert_NotOwner() public {
+        paymentToken.mint(address(store), 500 ether);
+        
+        vm.prank(buyer);
+        vm.expectRevert("Only store owner can call this function");
+        store.withdrawFunds(address(paymentToken));
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
