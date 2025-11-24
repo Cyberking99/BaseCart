@@ -894,6 +894,41 @@ contract BaseCartStoreTest is Test {
         assertEq(ownerBalanceAfter, ownerBalanceBefore + 500 ether, "Owner should receive funds");
     }
 
+    /**
+     * @dev Test withdrawal after revenue distribution
+     * Note: For non-escrow orders, revenue is distributed immediately, so store balance is zero
+     */
+    function test_WithdrawFunds_Success_AfterRevenueDistribution() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+        
+        // Create order and process payment (non-escrow, so revenue is distributed immediately)
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+        
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+        
+        // Verify store balance is zero (revenue was distributed immediately)
+        uint256 storeBalance = paymentToken.balanceOf(address(store));
+        assertEq(storeBalance, 0, "Store balance should be zero after revenue distribution");
+        
+        // Add some additional funds to store for withdrawal test
+        paymentToken.mint(address(store), 200 ether);
+        
+        // Now withdraw should succeed
+        uint256 ownerBalanceBefore = paymentToken.balanceOf(owner);
+        vm.prank(owner);
+        store.withdrawFunds(address(paymentToken));
+        
+        assertEq(paymentToken.balanceOf(address(store)), 0, "Store balance should be zero");
+        assertEq(paymentToken.balanceOf(owner), ownerBalanceBefore + 200 ether, "Owner should receive funds");
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
