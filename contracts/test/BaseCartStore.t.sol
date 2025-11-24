@@ -929,6 +929,46 @@ contract BaseCartStoreTest is Test {
         assertEq(paymentToken.balanceOf(owner), ownerBalanceBefore + 200 ether, "Owner should receive funds");
     }
 
+    /**
+     * @dev Test withdrawal of multiple token types
+     */
+    function test_WithdrawFunds_Success_MultipleTokens() public {
+        // Create second token
+        ERC20Mock token2 = new ERC20Mock();
+        vm.startPrank(owner);
+        factory.addSupportedToken(address(token2));
+        vm.stopPrank();
+        
+        // Send both tokens to store
+        paymentToken.mint(address(store), 300 ether);
+        token2.mint(address(store), 200 ether);
+        
+        // Withdraw first token
+        vm.prank(owner);
+        store.withdrawFunds(address(paymentToken));
+        assertEq(paymentToken.balanceOf(address(store)), 0, "First token balance should be zero");
+        assertEq(paymentToken.balanceOf(owner), 300 ether, "Owner should receive first token");
+        
+        // Withdraw second token
+        vm.prank(owner);
+        store.withdrawFunds(address(token2));
+        assertEq(token2.balanceOf(address(store)), 0, "Second token balance should be zero");
+        assertEq(token2.balanceOf(owner), 200 ether, "Owner should receive second token");
+    }
+
+    /**
+     * @dev Test that FundsWithdrawn event is emitted
+     */
+    function test_WithdrawFunds_EmitsEvent() public {
+        paymentToken.mint(address(store), 500 ether);
+        
+        vm.expectEmit(true, false, false, true);
+        emit FundsWithdrawn(owner, address(paymentToken), 500 ether);
+        
+        vm.prank(owner);
+        store.withdrawFunds(address(paymentToken));
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
