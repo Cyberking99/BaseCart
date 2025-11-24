@@ -689,6 +689,69 @@ contract BaseCartStoreTest is Test {
         store.addRevenueSplit(productId, address(0x100), 1000);
     }
 
+    /**
+     * @dev Test revert when store is not active
+     */
+    function test_AddRevenueSplit_Revert_StoreNotActive() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        store.setStoreActive(false);
+        vm.stopPrank();
+        
+        vm.prank(owner);
+        vm.expectRevert("Store is not active");
+        store.addRevenueSplit(productId, address(0x100), 1000);
+    }
+
+    // ============ removeRevenueSplit() TESTS ============
+
+    /**
+     * @dev Test successful removal of revenue split
+     */
+    function test_RemoveRevenueSplit_Success() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        
+        address recipient = address(0x100);
+        store.addRevenueSplit(productId, recipient, 1000);
+        
+        vm.expectEmit(true, false, false, true);
+        emit RevenueSplitRemoved(productId, recipient);
+        
+        store.removeRevenueSplit(productId, 0);
+        vm.stopPrank();
+        
+        // Verify split was removed
+        BaseCartStore.RevenueSplit[] memory splits = store.getProductRevenueSplits(productId);
+        assertEq(splits.length, 0, "Should have no splits");
+    }
+
+    /**
+     * @dev Test removing split from middle of array
+     */
+    function test_RemoveRevenueSplit_Success_FromMiddle() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        
+        address recipient1 = address(0x100);
+        address recipient2 = address(0x200);
+        address recipient3 = address(0x300);
+        
+        store.addRevenueSplit(productId, recipient1, 2000);
+        store.addRevenueSplit(productId, recipient2, 3000);
+        store.addRevenueSplit(productId, recipient3, 1500);
+        
+        // Remove middle split (index 1)
+        store.removeRevenueSplit(productId, 1);
+        vm.stopPrank();
+        
+        // Verify split was removed and array was reordered
+        BaseCartStore.RevenueSplit[] memory splits = store.getProductRevenueSplits(productId);
+        assertEq(splits.length, 2, "Should have 2 splits");
+        assertEq(splits[0].recipient, recipient1, "First split should remain");
+        assertEq(splits[1].recipient, recipient3, "Last split should move to middle");
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
