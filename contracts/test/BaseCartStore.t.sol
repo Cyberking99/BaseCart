@@ -752,6 +752,44 @@ contract BaseCartStoreTest is Test {
         assertEq(splits[1].recipient, recipient3, "Last split should move to middle");
     }
 
+    /**
+     * @dev Test removing last split
+     */
+    function test_RemoveRevenueSplit_Success_LastSplit() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        
+        address recipient1 = address(0x100);
+        address recipient2 = address(0x200);
+        
+        store.addRevenueSplit(productId, recipient1, 2000);
+        store.addRevenueSplit(productId, recipient2, 3000);
+        
+        store.removeRevenueSplit(productId, 1); // Remove last
+        vm.stopPrank();
+        
+        BaseCartStore.RevenueSplit[] memory splits = store.getProductRevenueSplits(productId);
+        assertEq(splits.length, 1, "Should have 1 split");
+        assertEq(splits[0].recipient, recipient1, "First split should remain");
+    }
+
+    /**
+     * @dev Test that RevenueSplitRemoved event is emitted
+     */
+    function test_RemoveRevenueSplit_EmitsEvent() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        
+        address recipient = address(0x100);
+        store.addRevenueSplit(productId, recipient, 1000);
+        
+        vm.expectEmit(true, false, false, true);
+        emit RevenueSplitRemoved(productId, recipient);
+        
+        store.removeRevenueSplit(productId, 0);
+        vm.stopPrank();
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
