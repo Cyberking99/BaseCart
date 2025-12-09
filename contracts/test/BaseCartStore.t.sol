@@ -1225,6 +1225,77 @@ contract BaseCartStoreTest is Test {
         assertEq(paymentToken.balanceOf(buyer), buyerBalanceBefore + 100 ether, "Buyer should receive full refund");
     }
 
+    /**
+     * @dev Test successful refund of escrow order in Shipped status
+     */
+    function test_RefundOrder_Success_ShippedStatus() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        // Create escrow order
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, true);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Mark as shipped
+        vm.prank(owner);
+        store.markOrderShipped(orderId);
+
+        uint256 buyerBalanceBefore = paymentToken.balanceOf(buyer);
+        uint256 platformFee = factory.calculatePlatformFee(100 ether);
+        
+        // Add platform fee back to store so it can refund the full amount
+        paymentToken.mint(address(store), platformFee);
+
+        vm.prank(owner);
+        store.refundOrder(orderId);
+
+        // Verify order status is Refunded
+        (,,,,,, BaseCartStore.OrderStatus statusAfter,,) = _getOrder(orderId);
+        assertEq(uint256(statusAfter), uint256(BaseCartStore.OrderStatus.Refunded), "Order should be Refunded");
+
+        // Verify buyer received refund
+        assertEq(paymentToken.balanceOf(buyer), buyerBalanceBefore + 100 ether, "Buyer should receive full refund");
+    }
+
+    /**
+     * @dev Test refund returns inventory for physical products
+     */
+    function test_RefundOrder_Success_ReturnsInventory() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 2, true); // Order 2 items
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Verify inventory decreased
+        (,,,,,uint256 inventoryBefore,,,) = store.products(productId);
+        assertEq(inventoryBefore, 48, "Inventory should be 48");
+
+        uint256 platformFee = factory.calculatePlatformFee(200 ether);
+        paymentToken.mint(address(store), platformFee);
+
+        vm.prank(owner);
+        store.refundOrder(orderId);
+
+        // Verify inventory was returned
+        (,,,,,uint256 inventoryAfter,,,) = store.products(productId);
+        assertEq(inventoryAfter, 50, "Inventory should be restored to 50");
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
