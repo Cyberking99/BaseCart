@@ -1296,6 +1296,88 @@ contract BaseCartStoreTest is Test {
         assertEq(inventoryAfter, 50, "Inventory should be restored to 50");
     }
 
+    // ============ refundOrder() REVERT CASES ============
+
+    /**
+     * @dev Test revert when order ID is zero
+     */
+    function test_RefundOrder_Revert_InvalidOrderId_Zero() public {
+        vm.prank(owner);
+        vm.expectRevert("Invalid order ID");
+        store.refundOrder(0);
+    }
+
+    /**
+     * @dev Test revert when order is not escrow
+     */
+    function test_RefundOrder_Revert_NotEscrowOrder() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false); // Non-escrow
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        vm.prank(owner);
+        vm.expectRevert("Only escrow orders can be refunded");
+        store.refundOrder(orderId);
+    }
+
+    /**
+     * @dev Test revert when order status is invalid for refund
+     */
+    function test_RefundOrder_Revert_InvalidStatus() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, true);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        vm.prank(owner);
+        store.markOrderShipped(orderId);
+        vm.prank(buyer);
+        store.confirmDelivery(orderId); // Order is now Completed
+
+        vm.prank(owner);
+        vm.expectRevert("Invalid order status for refund");
+        store.refundOrder(orderId);
+    }
+
+    /**
+     * @dev Test revert when caller is not the owner
+     */
+    function test_RefundOrder_Revert_NotOwner() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, true);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        vm.prank(buyer);
+        vm.expectRevert("Only store owner can call this function");
+        store.refundOrder(orderId);
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
