@@ -1078,6 +1078,81 @@ contract BaseCartStoreTest is Test {
         assertEq(uint256(status), uint256(BaseCartStore.OrderStatus.Completed), "Order should be Completed");
     }
 
+    // ============ confirmDelivery() REVERT CASES ============
+
+    /**
+     * @dev Test revert when order ID is zero
+     */
+    function test_ConfirmDelivery_Revert_InvalidOrderId_Zero() public {
+        vm.prank(buyer);
+        vm.expectRevert("Invalid order ID");
+        store.confirmDelivery(0);
+    }
+
+    /**
+     * @dev Test revert when order ID is too high
+     */
+    function test_ConfirmDelivery_Revert_InvalidOrderId_TooHigh() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        vm.prank(buyer);
+        vm.expectRevert("Invalid order ID");
+        store.confirmDelivery(orderId + 1);
+    }
+
+    /**
+     * @dev Test revert when caller is not the buyer
+     */
+    function test_ConfirmDelivery_Revert_NotBuyer() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        vm.prank(owner);
+        store.markOrderShipped(orderId);
+
+        vm.prank(otherUser);
+        vm.expectRevert("Not the order buyer");
+        store.confirmDelivery(orderId);
+    }
+
+    /**
+     * @dev Test revert when order is not shipped
+     */
+    function test_ConfirmDelivery_Revert_OrderNotShipped() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Try to confirm delivery before shipping
+        vm.prank(buyer);
+        vm.expectRevert("Order not shipped");
+        store.confirmDelivery(orderId);
+    }
+
     // ============ HELPER FUNCTIONS ============
 
     /**
