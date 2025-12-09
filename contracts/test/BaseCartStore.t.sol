@@ -27,6 +27,8 @@ contract BaseCartStoreTest is Test {
     event RevenueSplitAdded(uint256 indexed productId, address recipient, uint256 percentage);
     event RevenueSplitRemoved(uint256 indexed productId, address recipient);
     event FundsWithdrawn(address indexed recipient, address token, uint256 amount);
+    event EscrowReleased(uint256 indexed orderId, address indexed buyer, uint256 amount);
+    event EscrowRefunded(uint256 indexed orderId, address indexed buyer, uint256 amount);
 
     function setUp() public {
         // Setup accounts
@@ -998,6 +1000,82 @@ contract BaseCartStoreTest is Test {
         vm.prank(buyer);
         vm.expectRevert("Only store owner can call this function");
         store.withdrawFunds(address(paymentToken));
+    }
+
+    // ============ confirmDelivery() TESTS ============
+
+    /**
+     * @dev Test successful confirmation of delivery for escrow order
+     */
+    function test_ConfirmDelivery_Success_EscrowOrder() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        // Create escrow order
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, true);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Mark as shipped
+        vm.prank(owner);
+        store.markOrderShipped(orderId);
+
+        // Confirm delivery
+        uint256 buyerBalanceBefore = paymentToken.balanceOf(buyer);
+        uint256 platformFee = factory.calculatePlatformFee(100 ether);
+        uint256 sellerAmount = 100 ether - platformFee;
+
+        vm.expectEmit(true, true, false, true);
+        emit EscrowReleased(orderId, buyer, sellerAmount);
+        vm.expectEmit(true, false, false, true);
+        emit OrderStatusUpdated(orderId, BaseCartStore.OrderStatus.Completed);
+
+        vm.prank(buyer);
+        store.confirmDelivery(orderId);
+
+        // Verify order status is Completed
+        (,,,,,, BaseCartStore.OrderStatus status,,) = _getOrder(orderId);
+        assertEq(uint256(status), uint256(BaseCartStore.OrderStatus.Completed), "Order should be Completed");
+    }
+
+    /**
+     * @dev Test successful confirmation of delivery for non-escrow order
+     */
+    function test_ConfirmDelivery_Success_NonEscrowOrder() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        // Create non-escrow order
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        // Mark as shipped
+        vm.prank(owner);
+        store.markOrderShipped(orderId);
+
+        // Confirm delivery (should not emit EscrowReleased)
+        vm.expectEmit(true, false, false, true);
+        emit OrderStatusUpdated(orderId, BaseCartStore.OrderStatus.Completed);
+
+        vm.prank(buyer);
+        store.confirmDelivery(orderId);
+
+        // Verify order status is Completed
+        (,,,,,, BaseCartStore.OrderStatus status,,) = _getOrder(orderId);
+        assertEq(uint256(status), uint256(BaseCartStore.OrderStatus.Completed), "Order should be Completed");
     }
 
     // ============ HELPER FUNCTIONS ============
