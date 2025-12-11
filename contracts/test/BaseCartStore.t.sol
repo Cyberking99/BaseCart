@@ -2781,7 +2781,7 @@ contract BaseCartStoreTest is Test {
         store.processPayment(orderId);
 
         // Verify inventory decreased
-        (,,,,,uint256 inventoryBefore,,,) = store.products(productId);
+        (,,,,,,,uint256 inventoryBefore,) = _getProduct(productId);
         assertEq(inventoryBefore, 48, "Inventory should be 48");
 
         uint256 platformFee = factory.calculatePlatformFee(200 ether);
@@ -2791,7 +2791,7 @@ contract BaseCartStoreTest is Test {
         store.refundOrder(orderId);
 
         // Verify inventory was returned
-        (,,,,,uint256 inventoryAfter,,,) = store.products(productId);
+        (,,,,,,,uint256 inventoryAfter,) = _getProduct(productId);
         assertEq(inventoryAfter, 50, "Inventory should be restored to 50");
     }
 
@@ -2921,7 +2921,7 @@ contract BaseCartStoreTest is Test {
         assertEq(uint256(statusBefore), uint256(BaseCartStore.OrderStatus.Pending), "Order should be Pending");
 
         // Verify inventory decreased
-        (,,,,,uint256 inventoryBefore,,,) = store.products(productId);
+        (,,,,,,,uint256 inventoryBefore,) = _getProduct(productId);
         assertEq(inventoryBefore, 48, "Inventory should be 48");
 
         vm.expectEmit(true, false, false, true);
@@ -2935,7 +2935,7 @@ contract BaseCartStoreTest is Test {
         assertEq(uint256(statusAfter), uint256(BaseCartStore.OrderStatus.Cancelled), "Order should be Cancelled");
 
         // Verify inventory was returned
-        (,,,,,uint256 inventoryAfter,,,) = store.products(productId);
+        (,,,,,,,uint256 inventoryAfter,) = _getProduct(productId);
         assertEq(inventoryAfter, 50, "Inventory should be restored to 50");
     }
 
