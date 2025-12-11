@@ -149,5 +149,67 @@ contract BaseCartFactoryTest is Test {
         address[] memory stores = factory.getStoresByOwner(user1);
         assertEq(stores.length, 0, "Should return empty array");
     }
+
+    // ============ getTotalStores() TESTS ============
+
+    /**
+     * @dev Test getting total stores count
+     */
+    function test_GetTotalStores_Success() public {
+        assertEq(factory.getTotalStores(), 0, "Initial total should be 0");
+
+        vm.prank(user1);
+        factory.createStore("Store 1", "store-1", "Desc 1");
+        assertEq(factory.getTotalStores(), 1, "Total should be 1");
+
+        vm.prank(user2);
+        factory.createStore("Store 2", "store-2", "Desc 2");
+        assertEq(factory.getTotalStores(), 2, "Total should be 2");
+
+        vm.prank(user1);
+        factory.createStore("Store 3", "store-3", "Desc 3");
+        assertEq(factory.getTotalStores(), 3, "Total should be 3");
+    }
+
+    // ============ calculatePlatformFee() TESTS ============
+
+    /**
+     * @dev Test platform fee calculation with default fee (2.5%)
+     */
+    function test_CalculatePlatformFee_Success_DefaultFee() public {
+        uint256 amount = 1000 ether;
+        uint256 expectedFee = (amount * 250) / 10000; // 2.5% = 25 ether
+
+        uint256 fee = factory.calculatePlatformFee(amount);
+        assertEq(fee, expectedFee, "Fee should be 25 ether (2.5% of 1000)");
+    }
+
+    /**
+     * @dev Test platform fee calculation with different amounts
+     */
+    function test_CalculatePlatformFee_Success_DifferentAmounts() public {
+        assertEq(factory.calculatePlatformFee(100 ether), 2.5 ether, "Fee for 100 should be 2.5");
+        assertEq(factory.calculatePlatformFee(1000 ether), 25 ether, "Fee for 1000 should be 25");
+        assertEq(factory.calculatePlatformFee(10000 ether), 250 ether, "Fee for 10000 should be 250");
+    }
+
+    // ============ isTokenSupported() TESTS ============
+
+    /**
+     * @dev Test checking if token is supported
+     */
+    function test_IsTokenSupported_Success() public {
+        ERC20Mock token = new ERC20Mock();
+
+        // Token should not be supported initially
+        assertFalse(factory.isTokenSupported(address(token)), "Token should not be supported");
+
+        // Add token support
+        vm.prank(owner);
+        factory.addSupportedToken(address(token));
+
+        // Token should now be supported
+        assertTrue(factory.isTokenSupported(address(token)), "Token should be supported");
+    }
 }
 
