@@ -98,5 +98,56 @@ contract BaseCartFactoryTest is Test {
         assertEq(stores[1], store2, "Second store should match");
         assertEq(stores[2], store3, "Third store should match");
     }
+
+    /**
+     * @dev Test that different users can create stores
+     */
+    function test_CreateStore_Success_DifferentUsers() public {
+        vm.prank(user1);
+        address store1 = factory.createStore("User1 Store", "user1-store", "User1 Description");
+
+        vm.prank(user2);
+        address store2 = factory.createStore("User2 Store", "user2-store", "User2 Description");
+
+        // Verify both stores are registered
+        assertTrue(factory.isValidStore(store1), "Store 1 should be valid");
+        assertTrue(factory.isValidStore(store2), "Store 2 should be valid");
+
+        // Verify total stores count
+        assertEq(factory.getTotalStores(), 2, "Total stores should be 2");
+
+        // Verify stores by owner
+        address[] memory user1Stores = factory.getStoresByOwner(user1);
+        address[] memory user2Stores = factory.getStoresByOwner(user2);
+        assertEq(user1Stores.length, 1, "User1 should have 1 store");
+        assertEq(user2Stores.length, 1, "User2 should have 1 store");
+        assertEq(user1Stores[0], store1, "User1 store should match");
+        assertEq(user2Stores[0], store2, "User2 store should match");
+    }
+
+    // ============ getStoresByOwner() TESTS ============
+
+    /**
+     * @dev Test getting stores for owner with multiple stores
+     */
+    function test_GetStoresByOwner_Success() public {
+        vm.startPrank(user1);
+        address store1 = factory.createStore("Store 1", "store-1", "Desc 1");
+        address store2 = factory.createStore("Store 2", "store-2", "Desc 2");
+        vm.stopPrank();
+
+        address[] memory stores = factory.getStoresByOwner(user1);
+        assertEq(stores.length, 2, "Should return 2 stores");
+        assertEq(stores[0], store1, "First store should match");
+        assertEq(stores[1], store2, "Second store should match");
+    }
+
+    /**
+     * @dev Test getting stores for owner with no stores
+     */
+    function test_GetStoresByOwner_Empty() public {
+        address[] memory stores = factory.getStoresByOwner(user1);
+        assertEq(stores.length, 0, "Should return empty array");
+    }
 }
 
