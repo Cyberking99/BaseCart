@@ -2658,9 +2658,9 @@ contract BaseCartStoreTest is Test {
     function test_ConfirmDelivery_Revert_StoreNotActive() public {
         vm.startPrank(owner);
         uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
-        store.setStoreActive(false);
         vm.stopPrank();
 
+        // Create order, process payment, and mark shipped while store is active
         vm.prank(buyer);
         uint256 orderId = store.createOrder(productId, 1, false);
 
@@ -2673,6 +2673,11 @@ contract BaseCartStoreTest is Test {
         vm.prank(owner);
         store.markOrderShipped(orderId);
 
+        // Deactivate store
+        vm.prank(owner);
+        store.setStoreActive(false);
+
+        // Try to confirm delivery when store is inactive
         vm.prank(buyer);
         vm.expectRevert("Store is not active");
         store.confirmDelivery(orderId);
@@ -2985,7 +2990,8 @@ contract BaseCartStoreTest is Test {
      */
     function test_CancelOrder_Success_UnlimitedProduct() public {
         vm.startPrank(owner);
-        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, true, 0);
+        // Digital unlimited product (physical products must have inventory)
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), true, true, 0);
         vm.stopPrank();
 
         vm.prank(buyer);
@@ -3070,12 +3076,17 @@ contract BaseCartStoreTest is Test {
     function test_CancelOrder_Revert_StoreNotActive() public {
         vm.startPrank(owner);
         uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
-        store.setStoreActive(false);
         vm.stopPrank();
 
+        // Create order while store is active
         vm.prank(buyer);
         uint256 orderId = store.createOrder(productId, 1, false);
 
+        // Deactivate store
+        vm.prank(owner);
+        store.setStoreActive(false);
+
+        // Try to cancel order when store is inactive
         vm.prank(buyer);
         vm.expectRevert("Store is not active");
         store.cancelOrder(orderId);
