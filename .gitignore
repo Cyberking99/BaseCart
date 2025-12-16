@@ -13,7 +13,7 @@ frontend/.env.production.local
 # Contracts
 contracts/.env
 contracts/node_modules
-
+.env
 # Foundry
 # Note: foundry.lock should typically be committed for reproducible builds
 # Uncomment the line below if you want to ignore it
