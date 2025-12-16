@@ -221,5 +221,42 @@ contract BaseCartFactoryTest is Test {
         // setUp deploys the factory with msg.sender = owner
         assertEq(factory.feeCollector(), owner, "Initial feeCollector should be owner");
     }
+
+    /**
+     * @dev Test that only the owner can update the platform fee
+     */
+    function test_UpdatePlatformFee_OnlyOwner() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        factory.updatePlatformFee(500);
+    }
+
+    /**
+     * @dev Test that updatePlatformFee updates the fee and emits the event
+     */
+    function test_UpdatePlatformFee_UpdatesAndEmits() public {
+        uint256 newFee = 500;
+
+        vm.prank(owner);
+        vm.expectEmit(false, false, false, true);
+        emit PlatformFeeUpdated(newFee);
+        factory.updatePlatformFee(newFee);
+
+        assertEq(
+            factory.platformFeePercentage(),
+            newFee,
+            "platformFeePercentage should be updated"
+        );
+    }
+
+    /**
+     * @dev Test that updateFeeCollector updates the collector address
+     */
+    function test_UpdateFeeCollector_UpdatesCollector() public {
+        vm.prank(owner);
+        factory.updateFeeCollector(user1);
+
+        assertEq(factory.feeCollector(), user1, "feeCollector should be updated to user1");
+    }
 }
 
