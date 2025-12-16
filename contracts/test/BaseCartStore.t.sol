@@ -2658,9 +2658,9 @@ contract BaseCartStoreTest is Test {
     function test_ConfirmDelivery_Revert_StoreNotActive() public {
         vm.startPrank(owner);
         uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
-        store.setStoreActive(false);
         vm.stopPrank();
 
+        // Create order, process payment, and mark shipped while store is active
         vm.prank(buyer);
         uint256 orderId = store.createOrder(productId, 1, false);
 
@@ -2673,6 +2673,11 @@ contract BaseCartStoreTest is Test {
         vm.prank(owner);
         store.markOrderShipped(orderId);
 
+        // Deactivate store
+        vm.prank(owner);
+        store.setStoreActive(false);
+
+        // Try to confirm delivery when store is inactive
         vm.prank(buyer);
         vm.expectRevert("Store is not active");
         store.confirmDelivery(orderId);
@@ -2781,7 +2786,7 @@ contract BaseCartStoreTest is Test {
         store.processPayment(orderId);
 
         // Verify inventory decreased
-        (,,,,,uint256 inventoryBefore,,,) = store.products(productId);
+        (,,,,,,,uint256 inventoryBefore,) = _getProduct(productId);
         assertEq(inventoryBefore, 48, "Inventory should be 48");
 
         uint256 platformFee = factory.calculatePlatformFee(200 ether);
@@ -2791,7 +2796,7 @@ contract BaseCartStoreTest is Test {
         store.refundOrder(orderId);
 
         // Verify inventory was returned
-        (,,,,,uint256 inventoryAfter,,,) = store.products(productId);
+        (,,,,,,,uint256 inventoryAfter,) = _getProduct(productId);
         assertEq(inventoryAfter, 50, "Inventory should be restored to 50");
     }
 
@@ -2875,6 +2880,216 @@ contract BaseCartStoreTest is Test {
         vm.prank(buyer);
         vm.expectRevert("Only store owner can call this function");
         store.refundOrder(orderId);
+    }
+
+    /**
+     * @dev Test revert when store is not active
+     */
+    function test_RefundOrder_Revert_StoreNotActive() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, true);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId);
+
+        vm.startPrank(owner);
+        store.setStoreActive(false);
+        vm.stopPrank();
+
+        vm.prank(owner);
+        vm.expectRevert("Store is not active");
+        store.refundOrder(orderId);
+    }
+
+    // ============ cancelOrder() TESTS ============
+
+    /**
+     * @dev Test successful cancellation by buyer
+     */
+    function test_CancelOrder_Success_ByBuyer() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 2, false);
+
+        // Verify order is Pending
+        (,,,,,, BaseCartStore.OrderStatus statusBefore,,) = _getOrder(orderId);
+        assertEq(uint256(statusBefore), uint256(BaseCartStore.OrderStatus.Pending), "Order should be Pending");
+
+        // Verify inventory decreased
+        (,,,,,,,uint256 inventoryBefore,) = _getProduct(productId);
+        assertEq(inventoryBefore, 48, "Inventory should be 48");
+
+        vm.expectEmit(true, false, false, true);
+        emit OrderStatusUpdated(orderId, BaseCartStore.OrderStatus.Cancelled);
+
+        vm.prank(buyer);
+        store.cancelOrder(orderId);
+
+        // Verify order status is Cancelled
+        (,,,,,, BaseCartStore.OrderStatus statusAfter,,) = _getOrder(orderId);
+        assertEq(uint256(statusAfter), uint256(BaseCartStore.OrderStatus.Cancelled), "Order should be Cancelled");
+
+        // Verify inventory was returned
+        (,,,,,,,uint256 inventoryAfter,) = _getProduct(productId);
+        assertEq(inventoryAfter, 50, "Inventory should be restored to 50");
+    }
+
+    /**
+     * @dev Test successful cancellation by owner
+     */
+    function test_CancelOrder_Success_ByOwner() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        vm.expectEmit(true, false, false, true);
+        emit OrderStatusUpdated(orderId, BaseCartStore.OrderStatus.Cancelled);
+
+        vm.prank(owner);
+        store.cancelOrder(orderId);
+
+        // Verify order status is Cancelled
+        (,,,,,, BaseCartStore.OrderStatus statusAfter,,) = _getOrder(orderId);
+        assertEq(uint256(statusAfter), uint256(BaseCartStore.OrderStatus.Cancelled), "Order should be Cancelled");
+    }
+
+    /**
+     * @dev Test cancellation doesn't return inventory for digital products
+     */
+    function test_CancelOrder_Success_DigitalProduct() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), true, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        vm.prank(buyer);
+        store.cancelOrder(orderId);
+
+        // Verify order is cancelled
+        (,,,,,, BaseCartStore.OrderStatus statusAfter,,) = _getOrder(orderId);
+        assertEq(uint256(statusAfter), uint256(BaseCartStore.OrderStatus.Cancelled), "Order should be Cancelled");
+    }
+
+    /**
+     * @dev Test cancellation doesn't return inventory for unlimited products
+     */
+    function test_CancelOrder_Success_UnlimitedProduct() public {
+        vm.startPrank(owner);
+        // Digital unlimited product (physical products must have inventory)
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), true, true, 0);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        vm.prank(buyer);
+        store.cancelOrder(orderId);
+
+        // Verify order is cancelled
+        (,,,,,, BaseCartStore.OrderStatus statusAfter,,) = _getOrder(orderId);
+        assertEq(uint256(statusAfter), uint256(BaseCartStore.OrderStatus.Cancelled), "Order should be Cancelled");
+    }
+
+    // ============ cancelOrder() REVERT CASES ============
+
+    /**
+     * @dev Test revert when order ID is zero
+     */
+    function test_CancelOrder_Revert_InvalidOrderId_Zero() public {
+        vm.prank(buyer);
+        vm.expectRevert("Invalid order ID");
+        store.cancelOrder(0);
+    }
+
+    /**
+     * @dev Test revert when order ID is too high
+     */
+    function test_CancelOrder_Revert_InvalidOrderId_TooHigh() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        vm.prank(buyer);
+        vm.expectRevert("Invalid order ID");
+        store.cancelOrder(orderId + 1);
+    }
+
+    /**
+     * @dev Test revert when caller is not buyer or owner
+     */
+    function test_CancelOrder_Revert_NotAuthorized() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        vm.prank(otherUser);
+        vm.expectRevert("Not authorized");
+        store.cancelOrder(orderId);
+    }
+
+    /**
+     * @dev Test revert when order is not in Pending status
+     */
+    function test_CancelOrder_Revert_OrderNotPending() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        paymentToken.mint(buyer, 1000 ether);
+        vm.prank(buyer);
+        paymentToken.approve(address(store), 1000 ether);
+        vm.prank(buyer);
+        store.processPayment(orderId); // Order is now Paid
+
+        vm.prank(buyer);
+        vm.expectRevert("Order cannot be cancelled");
+        store.cancelOrder(orderId);
+    }
+
+    /**
+     * @dev Test revert when store is not active
+     */
+    function test_CancelOrder_Revert_StoreNotActive() public {
+        vm.startPrank(owner);
+        uint256 productId = store.addProduct("Product", "Desc", 100 ether, address(paymentToken), false, false, 50);
+        vm.stopPrank();
+
+        // Create order while store is active
+        vm.prank(buyer);
+        uint256 orderId = store.createOrder(productId, 1, false);
+
+        // Deactivate store
+        vm.prank(owner);
+        store.setStoreActive(false);
+
+        // Try to cancel order when store is inactive
+        vm.prank(buyer);
+        vm.expectRevert("Store is not active");
+        store.cancelOrder(orderId);
     }
 
     // ============ HELPER FUNCTIONS ============
