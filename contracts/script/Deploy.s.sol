@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import {Script, console} from "forge-std/Script.sol";
 import {BaseCartFactory} from "../src/BaseCartFactory.sol";
 
-contract DeplyScript is Script {
+contract DeployScript is Script {
     BaseCartFactory public baseCartFactory;
 
     function setUp() public {}
